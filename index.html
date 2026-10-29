@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Pas d'utilisation par les IA : robots d'IA refusés et droits de fouille de données réservés (UE 2019/790, art. 4) -->
+  <meta name="robots" content="index, follow, noai, noimageai">
+  <meta name="tdm-reservation" content="1">
+  <title>Loopace Chrono — Chronométrage de course</title>
+  <meta name="description" content="Loopace Chrono : le logiciel de chronométrage de course, du départ à la ligne d'arrivée. Inscriptions, départ groupé, arrivées au dossard, classements individuel et par école, PDF.">
+  <meta name="theme-color" content="#15291F">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/chrono-app-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/chrono-app-192.png">
+  <link rel="apple-touch-icon" href="assets/chrono-app-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=1">
+  <!-- Même choix clair / sombre que les autres sites Loopace -->
+  <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
+  <!-- Excel (SheetJS) et PDF (jsPDF + AutoTable) : mis en cache par le service worker pour fonctionner hors ligne -->
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+  <script type="module" src="js/app.js?v=1"></script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4 15v4.5h16V15"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M4 15v4.5h16V15"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="2"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 4v4.5h4.5"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="i-screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12.5" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/></symbol>
+    <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M5 8.5V20h14V8.5M10 12.5h4"/></symbol>
+    <symbol id="i-hash" viewBox="0 0 24 24"><path d="M9.5 4 8 20M16 4l-1.5 16M4.5 9h15M4 15h15"/></symbol>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>  </svg>
+
+  <header class="nav">
+    <div class="nav__inner">
+      <a href="#courses" class="brand" aria-label="Loopace Chrono — accueil">
+        <span class="logo"><img class="logo__img logo__img--on-dark" src="assets/loopace-logo-clair.png" alt="Loopace" width="502" height="104"><img class="logo__img logo__img--on-light" src="assets/loopace-logo-sombre.png" alt="" width="502" height="104"></span>
+        <span class="brand__mod">Chrono</span>
+      </a>
+      <nav class="tabs" aria-label="Sections">
+        <a href="#courses" data-tab="courses">Courses</a>
+        <a href="#chrono" data-tab="chrono">Chronomètre <i class="tabs__live" id="liveDot" hidden></i></a>
+        <a href="#resultats" data-tab="resultats">Résultats</a>
+        <a href="#archives" data-tab="archives">Archives</a>
+        <a href="#admin" data-tab="admin">Administration</a>
+      </nav>
+      <button type="button" class="btn btn--sm nav__install" id="btnInstaller" hidden><svg class="ico"><use href="#i-download"/></svg>Installer l'appli</button>
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Changer de thème"><svg class="theme-toggle__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><svg class="theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg></button>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- ===== COURSES / PARTICIPANTS ===== -->
+    <section class="view" id="view-courses" hidden>
+      <div class="split">
+        <aside class="card">
+          <div class="card__head">
+            <h2>Courses</h2>
+            <button class="btn btn--sm" id="btnNouvelleCourse"><svg class="ico"><use href="#i-plus"/></svg>Nouvelle</button>
+          </div>
+          <ul class="course-list" id="listeCourses"></ul>
+        </aside>
+
+        <div class="card" id="panneauCourse">
+          <div class="empty" id="videCourse">
+            <img class="empty__logo media__dark" src="assets/chrono-logo-sombre.png" alt="">
+            <img class="empty__logo media__light" src="assets/chrono-logo-clair.png" alt="">
+            <p>Créez une course puis inscrivez les participants, à la main ou depuis un fichier Excel.</p>
+          </div>
+          <div id="detailCourse" hidden>
+            <div class="card__head card__head--wrap">
+              <div>
+                <h2 id="titreCourse"></h2>
+                <p class="meta" id="metaCourse"></p>
+              </div>
+              <div class="actions">
+                <button class="btn btn--ghost btn--sm" id="btnModifierCourse"><svg class="ico"><use href="#i-edit"/></svg>Modifier</button>
+                <button class="btn btn--ghost btn--sm btn--danger" id="btnSupprimerCourse"><svg class="ico"><use href="#i-trash"/></svg>Supprimer</button>
+              </div>
+            </div>
+            <div class="toolbar">
+              <input type="search" class="input" id="rechercheParticipant" placeholder="Rechercher un nom, une école, un dossard…">
+              <div class="actions">
+                <button class="btn btn--sm" id="btnNouveauParticipant"><svg class="ico"><use href="#i-plus"/></svg>Participant</button>
+                <button class="btn btn--ghost btn--sm" id="btnImporter"><svg class="ico"><use href="#i-upload"/></svg>Importer Excel</button>
+                <button class="btn btn--ghost btn--sm" id="btnExporterParticipants"><svg class="ico"><use href="#i-download"/></svg>Exporter</button>
+                <button class="btn btn--ghost btn--sm" id="btnDossards"><svg class="ico"><use href="#i-hash"/></svg>Attribuer les dossards</button>
+              </div>
+              <input type="file" id="fichierImport" accept=".xlsx,.xls,.csv" hidden>
+            </div>
+            <p class="meta" id="statsParticipants"></p>
+            <div class="table-wrap">
+              <table class="table table--hover">
+                <thead><tr><th>Dossard</th><th>Nom</th><th>Prénom</th><th>Sexe</th><th>Né(e)</th><th>École / Club</th><th>Catégorie</th><th>Téléphone</th><th class="c">Bulletin</th></tr></thead>
+                <tbody id="tableParticipants"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CHRONOMÈTRE ===== -->
+    <section class="view" id="view-chrono" hidden>
+      <div class="chrono-top card">
+        <label class="field field--inline">
+          <span>Course</span>
+          <select class="input" id="chronoCourse"></select>
+        </label>
+        <div class="actions">
+          <button class="btn btn--go" id="btnDepart"><svg class="ico"><use href="#i-play"/></svg>DÉPART</button>
+          <button class="btn btn--stop" id="btnArret"><svg class="ico"><use href="#i-stop"/></svg>ARRÊT</button>
+          <button class="btn btn--ghost" id="btnRaz"><svg class="ico"><use href="#i-reset"/></svg>Remise à zéro</button>
+          <button class="btn btn--ghost" id="btnEcran"><svg class="ico"><use href="#i-screen"/></svg>Écran public</button>
+        </div>
+      </div>
+
+      <div class="chrono-grid">
+        <div class="card chrono-card">
+          <span class="chip" id="chronoEtat">En attente</span>
+          <div class="clock" id="chronoAffichage">00:00:00.0</div>
+          <p class="meta" id="chronoInfo"></p>
+
+          <form class="arrival" id="formArrivee" autocomplete="off">
+            <label for="saisieDossard">Dossard arrivée</label>
+            <div class="arrival__row">
+              <input class="input input--xl" id="saisieDossard" inputmode="numeric" placeholder="N°" autocomplete="off">
+              <button class="btn btn--xl" type="submit"><svg class="ico"><use href="#i-check"/></svg>Valider</button>
+            </div>
+            <p class="arrival__msg" id="arriveeMessage" role="status" aria-live="polite"></p>
+          </form>
+
+          <div class="chrono-foot">
+            <div><small>Dernier dossard</small><b id="dernierDossard">—</b></div>
+            <button class="btn btn--ghost btn--sm" id="btnAnnulerArrivee"><svg class="ico"><use href="#i-undo"/></svg>Annuler la dernière arrivée</button>
+          </div>
+        </div>
+
+        <div class="card chrono-classement">
+          <div class="card__head"><h2>Classement</h2><span class="meta" id="nbClasses"></span></div>
+          <div class="table-wrap table-wrap--tall" id="scrollClassement">
+            <table class="table table--nowrap">
+              <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>École</th><th>Arrivée</th><th class="r">Temps</th></tr></thead>
+              <tbody id="tableArrivees"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card chrono-encours">
+          <div class="card__head"><h2>En course</h2><span class="meta" id="nbEnCours"></span></div>
+          <ul class="runner-list" id="listeEnCours"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== RÉSULTATS ===== -->
+    <section class="view" id="view-resultats" hidden>
+      <div class="card">
+        <div class="toolbar">
+          <label class="field field--inline">
+            <span>Course</span>
+            <select class="input" id="resultatsCourse"></select>
+          </label>
+          <div class="actions">
+            <button class="btn btn--sm" id="btnPdf"><svg class="ico"><use href="#i-pdf"/></svg>Exporter PDF</button>
+            <button class="btn btn--ghost btn--sm" id="btnExcelResultats"><svg class="ico"><use href="#i-download"/></svg>Exporter Excel</button>
+            <button class="btn btn--ghost btn--sm" id="btnArchiver"><svg class="ico"><use href="#i-archive"/></svg>Archiver la course</button>
+          </div>
+        </div>
+        <p class="meta" id="resultatsInfo"></p>
+        <div class="seg" role="tablist">
+          <button class="seg__btn is-on" data-seg="individuel" role="tab">Individuel</button>
+          <button class="seg__btn" data-seg="ecoles" role="tab">Par école / club</button>
+        </div>
+        <div id="segIndividuel" class="table-wrap">
+          <table class="table table--nowrap">
+            <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>Prénom</th><th>École / Club</th><th>Catégorie</th><th>Sexe</th><th>Né(e)</th><th class="r">Temps</th></tr></thead>
+            <tbody id="tableResultats"></tbody>
+          </table>
+        </div>
+        <div id="segEcoles" class="ecoles" hidden></div>
+      </div>
+    </section>
+
+    <!-- ===== ARCHIVES ===== -->
+    <section class="view" id="view-archives" hidden>
+      <div class="card">
+        <div class="card__head"><h2>Archives PDF</h2><span class="meta">Conservées dans ce navigateur</span></div>
+        <div class="table-wrap">
+          <table class="table table--nowrap">
+            <thead><tr><th>Course</th><th>Archivée le</th><th>Taille</th><th class="r">Actions</th></tr></thead>
+            <tbody id="tableArchives"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ADMINISTRATION ===== -->
+    <section class="view" id="view-admin" hidden>
+      <div class="card">
+        <div class="card__head">
+          <div><h2>Thèmes PDF</h2><p class="meta">Couleur, logo et textes de la feuille de résultats. Choisissez le thème dans chaque course.</p></div>
+          <button class="btn btn--sm" id="btnNouveauTheme"><svg class="ico"><use href="#i-plus"/></svg>Nouveau thème</button>
+        </div>
+        <div class="themes" id="grilleThemes"></div>
+      </div>
+
+      <div class="admin-grid">
+        <div class="card">
+          <h2>Options</h2>
+          <p class="meta">Réglages enregistrés sur ce poste.</p>
+          <div class="options">
+            <label class="check"><input type="checkbox" id="optSon"> Bip à chaque arrivée</label>
+            <p class="meta">Un bip confirme chaque arrivée, deux bips graves signalent une erreur, une mélodie la fin de course. Pratique avec une douchette.</p>
+            <button type="button" class="btn btn--ghost btn--sm" id="btnTesterSon"><svg class="ico"><use href="#i-sound"/></svg>Tester le son</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Import Excel</h2>
+          <p class="meta">Le modèle contient les colonnes attendues (Dossard et Nom obligatoires) et une feuille d'instructions.</p>
+          <button class="btn btn--ghost btn--sm" id="btnModele"><svg class="ico"><use href="#i-download"/></svg>Télécharger le modèle</button>
+        </div>
+        <div class="card">
+          <h2>Données</h2>
+          <p class="meta">Tout est enregistré dans ce navigateur, sur cet appareil. Exportez une sauvegarde pour changer d'ordinateur ou par précaution avant une course.</p>
+          <div class="actions">
+            <button class="btn btn--ghost btn--sm" id="btnSauvegarde"><svg class="ico"><use href="#i-download"/></svg>Exporter une sauvegarde</button>
+            <button class="btn btn--ghost btn--sm" id="btnRestaurer"><svg class="ico"><use href="#i-upload"/></svg>Restaurer</button>
+            <button class="btn btn--ghost btn--sm" id="btnDemo"><svg class="ico"><use href="#i-plus"/></svg>Course de démonstration</button>
+          </div>
+          <input type="file" id="fichierRestaurer" accept=".json,application/json" hidden>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">© 2026 Romain MARTIN · Loopace Chrono · données stockées localement dans ce navigateur</footer>
+
+  <!-- ===== DIALOGUES ===== -->
+  <dialog class="dlg" id="dlgCourse">
+    <form method="dialog" class="dlg__body" id="formCourse">
+      <h3 id="dlgCourseTitre">Nouvelle course</h3>
+      <div class="form-grid">
+        <label class="field field--full"><span>Nom de la course *</span><input class="input" name="nom" required maxlength="200"></label>
+        <label class="field"><span>Date</span><input class="input" type="date" name="date"></label>
+        <label class="field"><span>Heure de départ</span><input class="input" type="time" name="heure"></label>
+        <label class="field"><span>Lieu</span><input class="input" name="lieu" maxlength="200"></label>
+        <label class="field"><span>Distance (km)</span><input class="input" name="distance" inputmode="decimal" placeholder="ex : 5 ou 2,4"></label>
+        <label class="field"><span>Type</span><input class="input" name="type" list="typesCourse" placeholder="Route, Cross, Trail…"></label>
+        <label class="field"><span>Thème PDF</span><select class="input" name="themeId" id="selectTheme"></select></label>
+        <label class="field field--full"><span>Catégories</span><select class="input" name="categories" id="selectBareme"></select></label>
+        <label class="check field--full" id="champCategoriesSexe"><input type="checkbox" name="categoriesSexe"> Séparer filles et garçons (ex. « Minimes F », « Minimes M »)</label>
+        <details class="cats field--full" id="aideCategories">
+          <summary></summary>
+          <ul></ul>
+        </details>
+      </div>
+      <datalist id="typesCourse"><option>Route</option><option>Cross</option><option>Trail</option><option>Piste</option><option>Relais</option></datalist>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlgParticipant">
+    <form method="dialog" class="dlg__body" id="formParticipant">
+      <h3 id="dlgParticipantTitre">Nouveau participant</h3>
+      <div class="form-grid">
+        <label class="field"><span>Dossard</span><input class="input" name="dossard" maxlength="20"></label>
+        <label class="field"><span>Sexe</span><select class="input" name="sexe"><option value="F">F</option><option value="M">M</option></select></label>
+        <label class="field"><span>Nom *</span><input class="input" name="nom" required maxlength="100"></label>
+        <label class="field"><span>Prénom</span><input class="input" name="prenom" maxlength="100"></label>
+        <label class="field"><span>Année de naissance</span><input class="input" name="annee" inputmode="numeric" maxlength="4"></label>
+        <label class="field"><span>Téléphone</span><input class="input" name="telephone" type="tel" maxlength="30"></label>
+        <label class="field"><span>École / Club</span><input class="input" name="ecole" list="listeEcoles" maxlength="200"></label>
+        <label class="field"><span>Catégorie <em class="field__hint" id="indiceCategorie"></em></span><input class="input" name="categorie" list="listeCategories" maxlength="100"></label>
+        <label class="check field--full"><input type="checkbox" name="bulletin"> Bulletin d'inscription complet (le participant prend le départ)</label>
+      </div>
+      <datalist id="listeEcoles"></datalist>
+      <datalist id="listeCategories"></datalist>
+      <p class="dlg__error" id="erreurParticipant"></p>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost btn--danger dlg__left" data-valeur="supprimer" id="btnDesinscrire">Désinscrire</button>
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlgTheme">
+    <form method="dialog" class="dlg__body dlg__body--wide" id="formTheme">
+      <h3 id="dlgThemeTitre">Nouveau thème PDF</h3>
+      <div class="theme-edit">
+        <div class="form-grid">
+          <label class="field field--full"><span>Nom du thème *</span><input class="input" name="nom" required maxlength="100"></label>
+          <label class="field"><span>Couleur principale</span><span class="color"><input type="color" name="couleurPicker"><input class="input" name="couleur" maxlength="7" placeholder="#15291F"></span></label>
+          <label class="field"><span>Logo</span><span class="logo-pick"><button type="button" class="btn btn--ghost btn--sm" id="btnLogo">Choisir…</button><button type="button" class="btn btn--ghost btn--sm" id="btnLogoRetirer">Retirer</button></span></label>
+          <label class="field field--full"><span>Titre PDF</span><input class="input" name="titre" maxlength="200" placeholder="ex : Cross départemental UNSS"></label>
+          <label class="field field--full"><span>Sous-titre</span><input class="input" name="sousTitre" maxlength="200"></label>
+          <label class="field field--full"><span>Pied de page</span><input class="input" name="piedPage" maxlength="200" placeholder="Loopace Chrono"></label>
+          <label class="field"><span>Taille logo (20–200)</span><input class="input" type="number" name="tailleLogo" min="20" max="200"></label>
+          <label class="field"><span>Taille titre (8–48)</span><input class="input" type="number" name="tailleTitre" min="8" max="48"></label>
+          <label class="check field--full"><input type="checkbox" name="afficherEcoles"> Afficher le classement par école / club</label>
+        </div>
+        <div class="preview">
+          <small>Aperçu</small>
+          <div class="preview__page">
+            <div class="preview__head">
+              <img id="apercuLogo" alt="" hidden>
+              <div><em id="apercuMarque">Loopace Chrono</em><b id="apercuTitre">Nom de la course</b><span id="apercuSous"></span></div>
+            </div>
+            <i class="preview__rule" id="apercuTrait"></i>
+            <em class="preview__section" id="apercuSection">Classement individuel</em>
+            <span class="preview__row preview__row--1"></span><span class="preview__row preview__row--2"></span><span class="preview__row preview__row--3"></span><span class="preview__row"></span>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="fichierLogo" accept="image/*" hidden>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost btn--danger dlg__left" data-valeur="supprimer" id="btnSupprimerTheme">Supprimer</button>
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlgDossards">
+    <form method="dialog" class="dlg__body">
+      <h3>Attribuer les dossards</h3>
+      <p class="meta">Les participants dont le bulletin est complet sont numérotés à la suite, triés par école puis par nom. Les autres n'ont plus de dossard.</p>
+      <label class="field"><span>Premier numéro</span><input class="input" type="number" name="debut" min="0" value="1" required></label>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok">Attribuer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlgConfirm">
+    <form method="dialog" class="dlg__body">
+      <h3 id="confirmTitre"></h3>
+      <p class="dlg__text" id="confirmTexte"></p>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" data-valeur="non" id="confirmNon">Annuler</button>
+        <button class="btn" value="oui" id="confirmOui">Confirmer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</body>
+</html>

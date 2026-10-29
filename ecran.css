@@ -1,0 +1,34 @@
+/* Écran public : pensé pour un téléviseur ou un vidéoprojecteur, lisible de loin. */
+.screen { height: 100vh; overflow: hidden; padding: 2vh 2.5vw; gap: 2vh; }
+.screen__head { display: flex; align-items: center; gap: 2vw; }
+.screen__brand { display: flex; align-items: center; gap: .6rem; flex: none; font-size: 1.6rem; }
+.screen__brand span { font: 700 1.3rem/1 var(--font-display); color: var(--accent); }
+.screen__course { flex: 1; min-width: 0; text-align: center; }
+.screen__course h1 { font-size: clamp(1.6rem, 3.2vw, 3rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.screen__course p { color: var(--muted); font-size: clamp(.9rem, 1.3vw, 1.2rem); }
+.screen__tools { flex: none; }
+:fullscreen .screen__tools { visibility: hidden; }
+
+.screen__clock { display: flex; flex-direction: column; align-items: center; gap: 1vh; padding: 1.5vh 0 2vh; border-bottom: 1px solid var(--line); }
+.screen__time { font: 800 clamp(4rem, 13vw, 13rem)/1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.screen__time.is-running { color: var(--accent); }
+.screen__counts { display: flex; align-items: center; gap: 2.5vw; font-size: clamp(1rem, 1.6vw, 1.5rem); color: var(--muted); }
+.screen__counts b { color: var(--text); font-variant-numeric: tabular-nums; }
+.screen__counts .chip { font-size: clamp(.8rem, 1vw, 1rem); }
+
+.screen__body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 20vw, 360px); gap: 2vw; }
+.screen__table { overflow-y: auto; scrollbar-width: none; border: 1px solid var(--line); border-radius: 16px; }
+.screen__table .table { font-size: clamp(1rem, 1.7vw, 1.7rem); }
+.screen__table .table th { font-size: clamp(.75rem, 1vw, 1rem); }
+.screen__table .table td { padding: .5em .8em; }
+.screen__runners { min-height: 0; display: flex; flex-direction: column; padding: 1rem 1.2rem; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.screen__runners h2 { margin-bottom: .6rem; }
+.screen__runners ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; scrollbar-width: none; font-size: clamp(.9rem, 1.2vw, 1.2rem); }
+.screen__runners li { padding: .3em 0; border-top: 1px solid var(--line); }
+.screen__runners b { display: inline-block; min-width: 3em; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 800px) {
+  .screen { height: auto; overflow: auto; }
+  .screen__head { flex-wrap: wrap; }
+  .screen__body { grid-template-columns: minmax(0, 1fr); }
+}

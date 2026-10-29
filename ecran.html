@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, noai, noimageai">
+  <title>Loopace Chrono — Écran public</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/chrono-app-32.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#15291F">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=1">
+  <link rel="stylesheet" href="ecran.css?v=1">
+  <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
+  <script type="module" src="js/ecran.js?v=1"></script>
+</head>
+<body class="screen">
+  <header class="screen__head">
+    <div class="screen__brand">
+      <img class="logo__img logo__img--on-dark" src="assets/loopace-logo-clair.png" alt="Loopace" width="502" height="104">
+      <img class="logo__img logo__img--on-light" src="assets/loopace-logo-sombre.png" alt="" width="502" height="104">
+      <span>Chrono</span>
+    </div>
+    <div class="screen__course">
+      <h1 id="ecranCourse">—</h1>
+      <p id="ecranLieu"></p>
+    </div>
+    <div class="screen__tools">
+      <button class="btn btn--ghost btn--sm" id="btnPleinEcran">Plein écran</button>
+    </div>
+  </header>
+
+  <section class="screen__clock">
+    <div class="screen__time" id="ecranChrono">00:00:00</div>
+    <div class="screen__counts">
+      <span>En course : <b id="ecranEnCours">0</b></span>
+      <span>Classés : <b id="ecranClasses">0</b></span>
+      <span class="chip" id="ecranEtat">En attente</span>
+    </div>
+  </section>
+
+  <div class="screen__body">
+    <div class="screen__table" id="ecranScroll">
+      <table class="table table--nowrap">
+        <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>École</th><th class="r">Temps</th></tr></thead>
+        <tbody id="ecranClassement"></tbody>
+      </table>
+    </div>
+    <aside class="screen__runners">
+      <h2>En course</h2>
+      <ul id="ecranListeEnCours"></ul>
+    </aside>
+  </div>
+</body>
+</html>

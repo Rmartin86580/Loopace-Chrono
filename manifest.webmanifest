@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Loopace Chrono",
+  "short_name": "Loopace Chrono",
+  "description": "Chronométrage de course : départ groupé, arrivées au dossard, classements et PDF.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#15291F",
+  "theme_color": "#15291F",
+  "categories": ["sports", "productivity"],
+  "icons": [
+    { "src": "assets/chrono-app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/chrono-app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/chrono-app-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Chronomètre", "url": "./index.html#chrono", "icons": [{ "src": "assets/chrono-app-192.png", "sizes": "192x192" }] },
+    { "name": "Résultats", "url": "./index.html#resultats", "icons": [{ "src": "assets/chrono-app-192.png", "sizes": "192x192" }] },
+    { "name": "Écran public", "url": "./ecran.html", "icons": [{ "src": "assets/chrono-app-192.png", "sizes": "192x192" }] }
+  ]
+}
