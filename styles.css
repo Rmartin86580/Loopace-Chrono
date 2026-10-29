@@ -138,6 +138,19 @@ select.input { cursor: pointer; }
 .bareme input[data-champ="nom"] { min-width: 9.5rem; }
 .bareme th:first-child { width: 45%; }
 .bareme input[data-champ="nom"], .bareme input[type="number"] { font-size: .85rem; }
+.dlg--excel { width: min(760px, 100% - 32px); }
+.excel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.excel__col { display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; padding: 1.2rem 1.3rem 1.3rem; background: var(--bg-2); }
+.excel__col + .excel__col { border-left: 1px solid var(--line); }
+.excel__col h4 { margin: 0; font: 700 1.05rem/1.2 var(--font-display); }
+.excel__col .meta { flex: 1; }
+.excel__ico { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 12px; background: rgba(var(--accent-rgb), .12); color: var(--accent); }
+.excel__ico .ico { width: 1.25rem; height: 1.25rem; }
+.excel__actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .3rem; }
+@media (max-width: 640px) {
+  .excel { grid-template-columns: minmax(0, 1fr); }
+  .excel__col + .excel__col { border-left: 0; border-top: 1px solid var(--line); }
+}
 .dup-options { display: flex; flex-direction: column; gap: .5rem; padding-left: 1.75rem; }
 .dup-options[aria-disabled="true"] { opacity: .4; pointer-events: none; }
 .field__hint { font-style: normal; font-weight: 500; color: var(--accent); }
@@ -242,6 +255,14 @@ select.input { cursor: pointer; }
 .table--hover tbody tr[data-id]:hover td { background: rgba(var(--accent-rgb), .06); }
 .table--compact td { padding: .4rem .7rem; }
 .table--nowrap td { white-space: nowrap; }
+.table--tri th[data-tri] { cursor: pointer; user-select: none; }
+.table--tri th[data-tri]:hover { color: var(--text); }
+.table--tri th[aria-sort] { color: var(--accent); }
+.table--tri th[aria-sort="ascending"]::after { content: " ▲"; font-size: .7em; }
+.table--tri th[aria-sort="descending"]::after { content: " ▼"; font-size: .7em; }
+.filtres { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .7rem; }
+.filtres .input { width: auto; flex: 0 1 15rem; padding: .5em .8em; font-size: .86rem; }
+.filtres .input.is-actif { border-color: var(--accent); color: var(--accent); }
 .podium--1 td { background: var(--gold); }
 .podium--2 td { background: var(--silver); }
 .podium--3 td { background: var(--bronze); }

@@ -40,6 +40,7 @@
     <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
     <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M5 8.5V20h14V8.5M10 12.5h4"/></symbol>
     <symbol id="i-hash" viewBox="0 0 24 24"><path d="M9.5 4 8 20M16 4l-1.5 16M4.5 9h15M4 15h15"/></symbol>
+    <symbol id="i-sheet" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 9h17M3.5 14.5h17M9.5 9v11"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></symbol>
     <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
@@ -98,16 +99,27 @@
               <input type="search" class="input" id="rechercheParticipant" placeholder="Rechercher un nom, une école, un dossard…">
               <div class="actions">
                 <button class="btn btn--sm" id="btnNouveauParticipant"><svg class="ico"><use href="#i-plus"/></svg>Participant</button>
-                <button class="btn btn--ghost btn--sm" id="btnImporter"><svg class="ico"><use href="#i-upload"/></svg>Importer Excel</button>
-                <button class="btn btn--ghost btn--sm" id="btnExporterParticipants"><svg class="ico"><use href="#i-download"/></svg>Exporter</button>
+                <button class="btn btn--ghost btn--sm" id="btnExcel"><svg class="ico"><use href="#i-sheet"/></svg>Excel</button>
                 <button class="btn btn--ghost btn--sm" id="btnDossards"><svg class="ico"><use href="#i-hash"/></svg>Attribuer les dossards</button>
               </div>
               <input type="file" id="fichierImport" accept=".xlsx,.xls,.csv" hidden>
             </div>
+            <div class="filtres">
+              <select class="input" id="filtreStatut" aria-label="Filtrer les participants">
+                <option value="">Tous les participants</option>
+                <option value="incomplet">Bulletin incomplet</option>
+                <option value="complet">Bulletin complet</option>
+                <option value="sansDossard">Sans dossard</option>
+                <option value="aNumeroter">Bulletin complet sans dossard</option>
+              </select>
+              <select class="input" id="filtreEcole" aria-label="Filtrer par école"></select>
+              <select class="input" id="filtreCategorie" aria-label="Filtrer par catégorie"></select>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnEffacerFiltres" hidden><svg class="ico"><use href="#i-x"/></svg>Effacer les filtres</button>
+            </div>
             <p class="meta" id="statsParticipants"></p>
             <div class="table-wrap">
-              <table class="table table--hover">
-                <thead><tr><th>Dossard</th><th>Nom</th><th>Prénom</th><th>Sexe</th><th>Né(e)</th><th>École / Club</th><th>Catégorie</th><th>Téléphone</th><th class="c">Bulletin</th></tr></thead>
+              <table class="table table--hover table--tri">
+                <thead><tr id="enteteParticipants"><th data-tri="dossard">Dossard</th><th data-tri="nom">Nom</th><th data-tri="prenom">Prénom</th><th data-tri="sexe">Sexe</th><th data-tri="annee">Né(e)</th><th data-tri="ecole">École / Club</th><th data-tri="categorie">Catégorie</th><th>Téléphone</th><th class="c" data-tri="bulletin">Bulletin</th></tr></thead>
                 <tbody id="tableParticipants"></tbody>
               </table>
             </div>
@@ -247,7 +259,7 @@
         </div>
         <div class="card">
           <h2>Import Excel</h2>
-          <p class="meta">Le modèle contient les colonnes attendues (Dossard et Nom obligatoires) et une feuille d'instructions.</p>
+          <p class="meta">Le modèle contient les colonnes attendues (Nom, Sexe et Né obligatoires) et une feuille d'instructions.</p>
           <button class="btn btn--ghost btn--sm" id="btnModele"><svg class="ico"><use href="#i-download"/></svg>Télécharger le modèle</button>
         </div>
         <div class="card">
@@ -353,6 +365,34 @@
         <button class="btn" value="ok">Enregistrer</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog class="dlg dlg--excel" id="dlgExcel">
+    <div class="dlg__body">
+      <h3 id="dlgExcelTitre">Excel</h3>
+      <div class="excel">
+        <section class="excel__col">
+          <span class="excel__ico"><svg class="ico"><use href="#i-upload"/></svg></span>
+          <h4>Importer</h4>
+          <p class="meta">Ajoute les participants d'un fichier .xlsx, .xls ou .csv. Obligatoires sur chaque ligne : <b>Nom, Sexe et Né</b> (année de naissance). Les personnes déjà inscrites sont complétées, pas recréées.</p>
+          <div class="excel__actions">
+            <button type="button" class="btn btn--sm" id="btnImporter"><svg class="ico"><use href="#i-upload"/></svg>Choisir un fichier…</button>
+            <button type="button" class="btn btn--ghost btn--sm" id="btnModeleExcel"><svg class="ico"><use href="#i-download"/></svg>Modèle à remplir</button>
+          </div>
+        </section>
+        <section class="excel__col">
+          <span class="excel__ico"><svg class="ico"><use href="#i-download"/></svg></span>
+          <h4>Exporter</h4>
+          <p class="meta" id="excelExportTexte"></p>
+          <div class="excel__actions">
+            <button type="button" class="btn btn--sm" id="btnExporterParticipants"><svg class="ico"><use href="#i-download"/></svg>Exporter la liste</button>
+          </div>
+        </section>
+      </div>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" id="btnFermerExcel">Fermer</button>
+      </div>
+    </div>
   </dialog>
 
   <dialog class="dlg" id="dlgDupliquer">

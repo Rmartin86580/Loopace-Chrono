@@ -35,9 +35,12 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    fédération change ses catégories, il suffit de modifier ce fichier, de changer sa `version` (date) et de
    l'envoyer sur GitHub : tous les postes reçoivent le nouveau barème et recalculent les courses pas encore
    parties. **Administration → Catégories automatiques** permet aussi de modifier un barème à la main (prioritaire
-   sur l'officiel, inclus dans la sauvegarde) ; « Revenir au barème officiel » annule cette modification. Inscrire les participants (à la main ou « Importer Excel »), cocher
+   sur l'officiel, inclus dans la sauvegarde) ; « Revenir au barème officiel » annule cette modification. Inscrire les participants (à la main, ou bouton « Excel » → Importer, avec Nom, Sexe et Né obligatoires sur chaque ligne ; la même fenêtre exporte la liste et donne le modèle), cocher
    « Bulletin » pour ceux qui prennent le départ, puis éventuellement « Attribuer les dossards » : seuls les
    bulletins complets encore sans dossard sont numérotés, les dossards déjà donnés ne changent jamais.
+   La liste des participants se filtre (bulletin incomplet, sans dossard, école, catégorie) et se trie en
+   cliquant sur une colonne. Réimporter un fichier ne crée pas de doublons : une personne déjà inscrite
+   (même nom et prénom, même année si connue) est complétée, sans perdre son dossard ni son bulletin complet.
    « Dupliquer » copie une course (réglages, et au choix ses participants avec ou sans dossards et bulletins)
    pour une autre course du même cross ou l'édition suivante ; les temps ne sont jamais copiés.
 2. **Chronomètre** : choisir la course, « DÉPART » (tous les bulletins complets partent ensemble), taper le

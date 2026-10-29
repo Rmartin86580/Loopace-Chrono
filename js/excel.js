@@ -5,14 +5,40 @@ function lib() {
   return window.XLSX;
 }
 
-const normaliser = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+// Les étoiles qui marquent les colonnes obligatoires du modèle (« Nom ★ ») ne comptent pas dans le nom de colonne
+const normaliser = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[★*]/g, "").toLowerCase().trim();
 
-/** Lit la première feuille d'un .xlsx / .xls / .csv et renvoie les lignes de participants. */
+/** « F », « Fille », « Femme », « Féminin » → F ; « M », « H », « G », « Homme », « Garçon », « Masculin » → M ; sinon vide. */
+function lireSexe(v) {
+  const s = normaliser(v);
+  if (/^(f|fille|femme|feminin|dame)s?$/.test(s)) return "F";
+  if (/^(m|h|g|homme|garcon|masculin|monsieur)s?$/.test(s)) return "M";
+  return "";
+}
+
+/** Année de naissance : nombre (2010), date Excel, ou texte contenant l'année (« 12/03/2010 ») ; sinon null. */
+function lireAnnee(brut) {
+  let a = null;
+  if (brut instanceof Date && !isNaN(brut)) a = brut.getFullYear();
+  else if (typeof brut === "number") a = Math.trunc(brut);
+  else a = Number(String(brut ?? "").match(/(19|20)\d\d/)?.[0]) || null;
+  return a && a >= 1900 && a <= new Date().getFullYear() ? a : null;
+}
+
+export const COLONNES_OBLIGATOIRES = ["Nom", "Sexe", "Né (année de naissance)"];
+
+/**
+ * Lit la première feuille d'un .xlsx / .xls / .csv et renvoie les lignes de participants,
+ * avec leur numéro de ligne dans le fichier (pour signaler celles qui sont incomplètes).
+ */
 export async function lireParticipants(fichier) {
   const XLSX = lib();
-  const wb = XLSX.read(await fichier.arrayBuffer(), { type: "array" });
+  const wb = XLSX.read(await fichier.arrayBuffer(), { type: "array", cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
+  // Texte tel qu'affiché pour tous les champs (garde le 0 d'un téléphone saisi en texte) ;
+  // valeurs brutes pour l'année, qui peut être une vraie date Excel
   const lignes = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+  const brutes = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
   if (!lignes.length) return [];
 
   const entetes = new Map();
@@ -30,21 +56,21 @@ export async function lireParticipants(fichier) {
     telephone: col("telephone", "tel", "phone"),
     bulletin: col("bulletin", "bulletinok", "bulletin ok", "inscrit"),
   };
-  if (c.dossard === -1 || c.nom === -1)
-    throw new Error("Colonnes obligatoires introuvables : le fichier doit contenir au minimum « Dossard » et « Nom ».");
+  const manquantes = [["Nom", c.nom], ["Sexe", c.sexe], ["Né (année de naissance)", c.annee]].filter(([, k]) => k === -1).map(([n]) => `« ${n} »`);
+  if (manquantes.length)
+    throw new Error(`Colonne(s) obligatoire(s) introuvable(s) : ${manquantes.join(", ")}. Le fichier doit contenir au minimum les colonnes Nom, Sexe et Né (année de naissance).`);
 
-  return lignes.slice(1).map((r) => {
-    const get = (k) => (k >= 0 ? String(r[k] ?? "").trim() : "");
-    let sexe = get(c.sexe).toUpperCase();
-    if (sexe !== "M" && sexe !== "F") sexe = "F";
-    const annee = parseInt(get(c.annee), 10);
+  return lignes.slice(1).map((r, k) => {
+    const get = (j) => (j >= 0 ? String(r[j] ?? "").trim() : "");
     return {
-      dossard: get(c.dossard), nom: get(c.nom), prenom: get(c.prenom), sexe,
-      annee: Number.isFinite(annee) ? annee : null,
+      ligne: k + 2,
+      dossard: get(c.dossard), nom: get(c.nom), prenom: get(c.prenom),
+      sexe: lireSexe(get(c.sexe)), sexeLu: get(c.sexe),
+      annee: lireAnnee(brutes[k + 1]?.[c.annee]), anneeLue: get(c.annee),
       ecole: get(c.ecole), categorie: get(c.categorie), telephone: get(c.telephone),
       bulletin: ["1", "oui", "true", "yes", "x", "vrai"].includes(get(c.bulletin).toLowerCase()),
     };
-  }).filter((l) => l.dossard || l.nom);
+  }).filter((l) => l.dossard || l.nom || l.prenom || l.sexeLu || l.anneeLue); // lignes entièrement vides ignorées
 }
 
 function ecrire(nomFichier, feuilles) {
@@ -90,12 +116,13 @@ export function telechargerModele() {
   ecrire("Modele_Import_Participants.xlsx", [
     {
       nom: "Import",
-      largeurs: [12, 20, 18, 8, 8, 25, 16, 16, 12],
+      // Colonnes obligatoires en premier : Nom, Sexe, Né
+      largeurs: [20, 18, 8, 8, 10, 25, 16, 16, 12],
       lignes: [
-        ["Dossard", "Nom", "Prenom", "Sexe", "Né", "Ecole", "Categorie", "Telephone", "Bulletin"],
-        ["1", "Dupont", "Marie", "F", 2010, "Lycée Jean Moulin", "Cadette", "0612345678", "oui"],
-        ["2", "Martin", "Thomas", "M", 2009, "Collège Vauban", "Cadet", "", ""],
-        ["3", "Bernard", "Léa", "F", 2011, "Lycée Jean Moulin", "Cadette", "", "1"],
+        ["Nom ★", "Prenom", "Sexe ★", "Né ★", "Dossard", "Ecole", "Categorie", "Telephone", "Bulletin"],
+        ["Dupont", "Marie", "F", 2010, "", "Lycée Jean Moulin", "", "0612345678", "oui"],
+        ["Martin", "Thomas", "M", 2009, "", "Collège Vauban", "", "", ""],
+        ["Bernard", "Léa", "F", 2011, "12", "Lycée Jean Moulin", "", "", "1"],
       ],
     },
     {
@@ -104,18 +131,18 @@ export function telechargerModele() {
       lignes: [
         ["Instructions d'import — Loopace Chrono"],
         [],
-        ["1. Remplissez la feuille « Import » à partir de la ligne 2 (la ligne 1 contient les en-têtes, ne la modifiez pas)."],
-        ["2. Seules les colonnes Dossard et Nom sont obligatoires. Les autres peuvent rester vides."],
-        ["3. Enregistrez le fichier, puis utilisez « Importer Excel » dans l'onglet Courses."],
+        ["1. Remplissez la feuille « Import » à partir de la ligne 2 (la ligne 1 contient les en-têtes, ne la modifiez pas). Les colonnes marquées ★ sont obligatoires."],
+        ["2. Les colonnes Nom, Sexe et Né (année de naissance) sont obligatoires et doivent être remplies sur chaque ligne ; une ligne incomplète est ignorée et signalée. Les autres colonnes peuvent rester vides."],
+        ["3. Enregistrez le fichier, puis bouton « Excel » → « Choisir un fichier… » dans l'onglet Courses."],
         [],
         ["Colonne", "Description"],
-        ["Dossard ★", "Numéro de dossard (obligatoire, unique dans la course)"],
         ["Nom ★", "Nom de famille (obligatoire)"],
-        ["Prenom", "Prénom du participant"],
-        ["Sexe", "F ou M (défaut : F si absent ou valeur inconnue)"],
-        ["Né", "Année de naissance (ex : 2008)"],
+        ["Prenom", "Prénom du participant (conseillé : sert à repérer les doublons)"],
+        ["Sexe ★", "F ou M (obligatoire) ; Fille, Femme, Garçon, Homme, H sont aussi acceptés"],
+        ["Né ★", "Année de naissance (obligatoire), ex : 2010 ; une date complète (12/03/2010) convient aussi"],
+        ["Dossard", "Numéro de dossard, unique dans la course ; vide = à attribuer plus tard"],
         ["Ecole", "École ou club d'appartenance"],
-        ["Categorie", "Catégorie (ex : Poussins, Benjamins, Cadets…)"],
+        ["Categorie", "Catégorie, seulement si la course est en saisie libre (sinon calculée d'après l'année)"],
         ["Telephone", "Numéro de téléphone (optionnel)"],
         ["Bulletin", "Bulletin d'inscription complet ? Valeurs acceptées : oui / 1 / true / x"],
         [],

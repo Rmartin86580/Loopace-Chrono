@@ -10,6 +10,8 @@ import { genererPdf, nomFichier } from "./pdf.js";
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+/** Pour comparer des noms : sans accents, majuscules, espaces ni tirets superflus. */
+const normaliser = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[\s'-]+/g, " ").trim();
 const CLE_COURSE_CHRONO = "loopace-chrono-course";
 
 // ── Petits outils d'interface ────────────────────────────────
@@ -95,6 +97,40 @@ function rendre() {
 // ══════════════════════════════════════════════════════════════
 let courseSel = null;
 let recherche = "";
+// Filtres et tri de la liste des participants (remis à zéro quand on change de course)
+let filtres = { statut: "", ecole: "", categorie: "" };
+let tri = null; // { col, sens } ; null = école, nom, prénom
+const SANS = "\u0000sans"; // valeur des options « (sans école) », « (sans catégorie) »
+
+const FILTRES_STATUT = {
+  incomplet: (i) => !i.bulletin,
+  complet: (i) => i.bulletin,
+  sansDossard: (i) => !i.dossard,
+  aNumeroter: (i) => i.bulletin && !i.dossard,
+};
+
+function comparerParticipants(a, b) {
+  const fr = (x, y) => String(x || "").localeCompare(String(y || ""), "fr", { numeric: true });
+  if (!tri) return fr(a.ecole, b.ecole) || fr(a.nom, b.nom) || fr(a.prenom, b.prenom);
+  const v = { dossard: () => compareDossard(a.dossard, b.dossard), annee: () => (a.annee || 0) - (b.annee || 0), bulletin: () => (a.bulletin - b.bulletin) }[tri.col]?.()
+    ?? fr(a[tri.col], b[tri.col]);
+  return (v || fr(a.nom, b.nom) || fr(a.prenom, b.prenom)) * (tri.sens === "desc" ? -1 : 1);
+}
+
+function optionsFiltre(select, valeurs, tous, sans, choisi) {
+  const liste = [...new Set(valeurs.filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr", { numeric: true }));
+  if (choisi && choisi !== SANS && !liste.includes(choisi)) liste.push(choisi);
+  select.innerHTML = `<option value="">${tous}</option>` + liste.map((v) => `<option value="${esc(v)}"${v === choisi ? " selected" : ""}>${esc(v)}</option>`).join("") +
+    (valeurs.some((v) => !v) ? `<option value="${SANS}"${choisi === SANS ? " selected" : ""}>${sans}</option>` : "");
+  select.classList.toggle("is-actif", !!choisi);
+}
+
+function reinitialiserFiltres() {
+  recherche = "";
+  $("#rechercheParticipant").value = "";
+  filtres = { statut: "", ecole: "", categorie: "" };
+  tri = null;
+}
 
 function rendreCourses() {
   if (courseSel && !course(courseSel)) courseSel = null;
@@ -118,34 +154,56 @@ function rendreCourses() {
   const th = theme(c.themeId);
   $("#metaCourse").textContent = [fmtDate(c.date), c.heure && `départ ${c.heure}`, c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km`, c.type, th && `thème « ${th.nom} »`].filter(Boolean).join(" · ");
 
-  const tous = inscritsDe(c.id).sort((a, b) =>
-    (a.ecole || "").localeCompare(b.ecole || "", "fr") || (a.nom || "").localeCompare(b.nom || "", "fr") || (a.prenom || "").localeCompare(b.prenom || "", "fr"));
+  const tous = inscritsDe(c.id).sort(comparerParticipants);
+
+  $("#filtreStatut").value = filtres.statut;
+  $("#filtreStatut").classList.toggle("is-actif", !!filtres.statut);
+  optionsFiltre($("#filtreEcole"), tous.map((i) => i.ecole), "Toutes les écoles / clubs", "(sans école)", filtres.ecole);
+  optionsFiltre($("#filtreCategorie"), tous.map((i) => i.categorie), "Toutes les catégories", "(sans catégorie)", filtres.categorie);
+  const egal = (val, choisi) => !choisi || (choisi === SANS ? !val : val === choisi);
   const q = recherche.trim().toLowerCase();
-  const vus = q ? tous.filter((i) => [i.dossard, i.nom, i.prenom, i.ecole, i.categorie].some((v) => String(v ?? "").toLowerCase().includes(q))) : tous;
+  const vus = tous.filter((i) =>
+    (!filtres.statut || FILTRES_STATUT[filtres.statut](i)) && egal(i.ecole, filtres.ecole) && egal(i.categorie, filtres.categorie) &&
+    (!q || [i.dossard, i.nom, i.prenom, i.ecole, i.categorie].some((v) => String(v ?? "").toLowerCase().includes(q))));
+  const filtre = q || filtres.statut || filtres.ecole || filtres.categorie;
+  $("#btnEffacerFiltres").hidden = !filtre;
+  $$("#enteteParticipants th").forEach((th) => {
+    if (tri && th.dataset.tri === tri.col) th.setAttribute("aria-sort", tri.sens === "desc" ? "descending" : "ascending");
+    else th.removeAttribute("aria-sort");
+  });
 
   const nbBulletins = tous.filter((i) => i.bulletin).length;
-  $("#statsParticipants").textContent = `${tous.length} inscrit(s) · ${nbBulletins} bulletin(s) complet(s)` + (q ? ` · ${vus.length} affiché(s)` : "");
+  $("#statsParticipants").textContent = `${tous.length} inscrit(s) · ${nbBulletins} bulletin(s) complet(s)` + (filtre ? ` · ${vus.length} affiché(s)` : "");
   $("#tableParticipants").innerHTML = vus.length ? vus.map((i) => `<tr data-id="${i.id}">
       <td><b>${esc(i.dossard) || '<span class="muted">—</span>'}</b></td><td>${esc(i.nom)}</td><td>${esc(i.prenom)}</td><td>${esc(i.sexe)}</td>
       <td>${esc(i.annee)}</td><td>${esc(i.ecole)}</td><td>${esc(i.categorie)}</td><td>${esc(i.telephone)}</td>
       <td class="c"><input type="checkbox" class="toggle-bulletin" aria-label="Bulletin complet" ${i.bulletin ? "checked" : ""}></td></tr>`).join("")
-    : `<tr><td colspan="9" class="muted c">${tous.length ? "Aucun résultat pour cette recherche." : "Aucun participant : ajoutez-en ou importez un fichier Excel."}</td></tr>`;
+    : `<tr><td colspan="9" class="muted c">${tous.length ? "Aucun participant ne correspond à ces filtres." : "Aucun participant : ajoutez-en ou importez un fichier Excel."}</td></tr>`;
 
   const vide = tous.length === 0;
-  $("#btnExporterParticipants").disabled = vide;
   $("#btnDossards").disabled = vide;
 }
 
 $("#listeCourses").addEventListener("click", (e) => {
   const b = e.target.closest(".course-item");
   if (!b) return;
+  if (b.dataset.id !== courseSel) reinitialiserFiltres();
   courseSel = b.dataset.id;
-  recherche = "";
-  $("#rechercheParticipant").value = "";
   rendreCourses();
 });
 
 $("#rechercheParticipant").addEventListener("input", (e) => { recherche = e.target.value; rendreCourses(); });
+$("#filtreStatut").addEventListener("change", (e) => { filtres.statut = e.target.value; rendreCourses(); });
+$("#filtreEcole").addEventListener("change", (e) => { filtres.ecole = e.target.value; rendreCourses(); });
+$("#filtreCategorie").addEventListener("change", (e) => { filtres.categorie = e.target.value; rendreCourses(); });
+$("#btnEffacerFiltres").addEventListener("click", () => { const t = tri; reinitialiserFiltres(); tri = t; rendreCourses(); });
+// Clic sur une colonne : tri croissant, puis décroissant, puis retour à l'ordre par école
+$("#enteteParticipants").addEventListener("click", (e) => {
+  const col = e.target.closest("th[data-tri]")?.dataset.tri;
+  if (!col) return;
+  tri = tri?.col !== col ? { col, sens: "asc" } : tri.sens === "asc" ? { col, sens: "desc" } : null;
+  rendreCourses();
+});
 
 function optionsThemes(select, idChoisi) {
   const themes = [...state.themes].sort((a, b) => (b.defaut - a.defaut) || a.nom.localeCompare(b.nom, "fr"));
@@ -184,6 +242,7 @@ async function editerCourse(c) {
     cible = { id: uid(), ...valeurs, chrono: { etat: "attente", depart: null, fin: null } };
     state.courses.push(cible);
     courseSel = cible.id;
+    reinitialiserFiltres();
   }
   // Barème, date (saison) ou séparation F/M ont pu changer : on remet les catégories à jour
   const recalculees = calc.appliquerCategories(cible.id);
@@ -269,8 +328,7 @@ $("#btnDupliquerCourse").addEventListener("click", async () => {
   // La date a pu changer de saison : catégories automatiques remises à jour (corrections manuelles gardées)
   const recalculees = calc.appliquerCategories(copie.id);
   courseSel = copie.id;
-  recherche = "";
-  $("#rechercheParticipant").value = "";
+  reinitialiserFiltres();
   await store.sauver();
   rendre();
   toast(`Course « ${copie.nom} » créée` + (n ? ` avec ${n} participant(s)` : "") + "." + (recalculees ? ` ${recalculees} catégorie(s) recalculée(s).` : ""));
@@ -378,7 +436,26 @@ $("#tableParticipants").addEventListener("click", async (e) => {
   editerParticipant(i);
 });
 
-$("#btnImporter").addEventListener("click", () => $("#fichierImport").click());
+// Bouton « Excel » : une fenêtre en deux, importer à gauche, exporter à droite
+$("#btnExcel").addEventListener("click", () => {
+  const c = course(courseSel);
+  if (!c) return;
+  const nb = calc.nbInscrits(c.id);
+  $("#dlgExcelTitre").textContent = `Excel — ${c.nom}`;
+  $("#excelExportTexte").textContent = nb
+    ? `Télécharge la liste des ${nb} participant(s) de la course : dossard, nom, prénom, sexe, année, école, catégorie, téléphone, bulletin.`
+    : "Aucun participant à exporter pour l'instant.";
+  $("#btnExporterParticipants").disabled = !nb;
+  $("#dlgExcel").showModal();
+});
+$("#btnFermerExcel").addEventListener("click", () => $("#dlgExcel").close());
+$("#btnModeleExcel").addEventListener("click", () => {
+  try { excel.telechargerModele(); } catch (err) { toast(err.message, "err"); }
+});
+$("#btnImporter").addEventListener("click", () => {
+  $("#dlgExcel").close();
+  $("#fichierImport").click();
+});
 $("#fichierImport").addEventListener("change", async (e) => {
   const fichier = e.target.files[0];
   e.target.value = "";
@@ -390,31 +467,69 @@ $("#fichierImport").addEventListener("change", async (e) => {
   catch (err) { toast(`Impossible de lire le fichier : ${err.message}`, "err"); return; }
   if (!lignes.length) { toast("Aucune ligne trouvée dans le fichier.", "warn"); return; }
 
-  let importes = 0, ignores = 0;
+  // Doublons : une personne déjà inscrite (même nom et prénom, même année si les deux sont connues)
+  // est complétée au lieu d'être recréée ; réimporter un fichier corrigé ne crée donc pas de doublons.
+  const cle = (nom, prenom) => `${normaliser(nom)}|${normaliser(prenom)}`;
+  const memePersonne = (i, l) => cle(i.nom, i.prenom) === cle(l.nom, l.prenom) && (!i.annee || !l.annee || i.annee === l.annee);
+  let importes = 0, majs = 0, ignores = 0;
   const erreurs = [];
   lignes.forEach((l) => {
-    if (!l.nom) { ignores++; return; }
-    const dossard = l.dossard || null;
-    if (dossard && dossardPris(c.id, dossard)) {
-      erreurs.push(`Dossard ${dossard} (${l.prenom} ${l.nom}) déjà attribué`);
+    // Nom, sexe et année de naissance obligatoires : une ligne incomplète est ignorée et signalée
+    const qui = [l.prenom, l.nom].filter(Boolean).join(" ") || "sans nom";
+    const manque = [
+      !l.nom && "nom manquant",
+      !l.sexe && (l.sexeLu ? `sexe « ${l.sexeLu} » non reconnu (F ou M)` : "sexe manquant"),
+      !l.annee && (l.anneeLue ? `année « ${l.anneeLue} » invalide` : "année de naissance manquante"),
+    ].filter(Boolean);
+    if (manque.length) {
+      erreurs.push(`Ligne ${l.ligne} (${qui}) : ${manque.join(", ")} — ignorée`);
       ignores++;
       return;
     }
-    const categorie = calc.categorieAuto(c, l.annee, l.sexe) || l.categorie;
-    state.inscrits.push({ id: uid(), courseId: c.id, ...l, categorie, dossard, depart: null, arrivee: null, statut: null });
+    const dossard = l.dossard || null;
+    const existant = inscritsDe(c.id).find((i) => memePersonne(i, l));
+    if (existant) {
+      // On ne remplit que ce que le fichier apporte ; un bulletin complet ne redevient pas incomplet
+      if (l.prenom && !existant.prenom) existant.prenom = l.prenom;
+      existant.sexe = l.sexe;
+      existant.annee = l.annee;
+      if (l.ecole) existant.ecole = l.ecole;
+      if (l.telephone) existant.telephone = l.telephone;
+      if (l.bulletin) existant.bulletin = true;
+      if (dossard && dossard !== String(existant.dossard ?? "")) {
+        if (existant.dossard) erreurs.push(`${l.prenom} ${l.nom} : garde son dossard ${existant.dossard} (le fichier indique ${dossard})`);
+        else if (dossardPris(c.id, dossard, existant.id)) erreurs.push(`${l.prenom} ${l.nom} : dossard ${dossard} déjà attribué à un autre participant`);
+        else existant.dossard = dossard;
+      }
+      if (!existant.categorieManuelle) existant.categorie = calc.categorieAuto(c, existant.annee, existant.sexe) || l.categorie || existant.categorie;
+      majs++;
+      return;
+    }
+    if (dossard && dossardPris(c.id, dossard)) {
+      erreurs.push(`Dossard ${dossard} (${l.prenom} ${l.nom}) déjà attribué : ligne ignorée`);
+      ignores++;
+      return;
+    }
+    state.inscrits.push({
+      id: uid(), courseId: c.id, dossard, nom: l.nom, prenom: l.prenom, sexe: l.sexe, annee: l.annee,
+      ecole: l.ecole, categorie: calc.categorieAuto(c, l.annee, l.sexe) || l.categorie, telephone: l.telephone, bulletin: l.bulletin,
+      depart: null, arrivee: null, statut: null,
+    });
     importes++;
   });
   await store.sauver();
   rendre();
   let msg = `${importes} participant(s) importé(s).`;
+  if (majs) msg += ` ${majs} déjà inscrit(s), mis à jour.`;
   if (ignores) msg += ` ${ignores} ligne(s) ignorée(s).`;
   toast(msg, erreurs.length ? "warn" : "ok");
-  if (erreurs.length) await confirmer("Lignes ignorées", erreurs.join("\n"), { oui: "OK" });
+  if (erreurs.length) await confirmer("À vérifier après l'import", erreurs.join("\n"), { oui: "OK" });
 });
 
 $("#btnExporterParticipants").addEventListener("click", () => {
   const c = course(courseSel);
   if (!c) return;
+  $("#dlgExcel").close();
   const liste = inscritsDe(c.id).sort((a, b) => compareDossard(a.dossard, b.dossard));
   try { excel.exporterParticipants(nomFichier("Participants_", c.nom, "xlsx"), liste); }
   catch (err) { toast(err.message, "err"); }
@@ -1085,6 +1200,7 @@ $("#btnDemo").addEventListener("click", async () => {
   calc.appliquerCategories(id);
   await store.sauver();
   courseSel = id;
+  reinitialiserFiltres();
   location.hash = "#courses";
   rendre();
   toast("Course de démonstration créée (16 participants).");
