@@ -1,11 +1,11 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js";
-import * as calc from "./calc.js";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js";
-import * as excel from "./excel.js";
-import { genererPdf, nomFichier } from "./pdf.js";
+import * as store from "./store.js?v=6";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=6";
+import * as calc from "./calc.js?v=6";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=6";
+import * as excel from "./excel.js?v=6";
+import { genererPdf, nomFichier } from "./pdf.js?v=6";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -152,7 +152,7 @@ function rendreCourses() {
 
   $("#titreCourse").textContent = c.nom;
   const th = theme(c.themeId);
-  $("#metaCourse").textContent = [fmtDate(c.date), c.heure && `départ ${c.heure}`, c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km`, c.type, th && `thème « ${th.nom} »`].filter(Boolean).join(" · ");
+  $("#metaCourse").textContent = [fmtDate(c.date), c.heure && `départ ${c.heure}`, c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km`, c.type, c.plageDossards && `dossards ${plageTexte(c.plageDossards)}`, th && `thème « ${th.nom} »`].filter(Boolean).join(" · ");
 
   const tous = inscritsDe(c.id).sort(comparerParticipants);
 
@@ -211,6 +211,15 @@ function optionsThemes(select, idChoisi) {
     themes.map((t) => `<option value="${t.id}"${t.id === idChoisi ? " selected" : ""}>${esc(t.nom)}</option>`).join("");
 }
 
+/** Plage de dossards de la course : [premier, dernier] (dernier null = sans limite), ou null si non définie. */
+function lirePlage(de, a) {
+  const d = parseInt(de, 10), f = parseInt(a, 10);
+  if (!Number.isInteger(d) || d < 0) return null;
+  if (!Number.isInteger(f)) return [d, null];
+  return f < d ? [f, d] : [d, f];
+}
+const plageTexte = ([de, a]) => (a == null ? `à partir de ${de}` : `${de} à ${a}`);
+
 async function editerCourse(c) {
   const f = $("#formCourse");
   $("#dlgCourseTitre").textContent = c ? "Modifier la course" : "Nouvelle course";
@@ -219,6 +228,8 @@ async function editerCourse(c) {
   f.heure.value = c?.heure || "";
   f.lieu.value = c?.lieu || "";
   f.distance.value = c?.distance != null ? String(c.distance).replace(".", ",") : "";
+  f.dossardsDe.value = c?.plageDossards?.[0] ?? "";
+  f.dossardsA.value = c?.plageDossards?.[1] ?? "";
   f.type.value = c?.type || "";
   optionsThemes($("#selectTheme"), c ? c.themeId : THEME_DEFAUT_ID);
   // Nouvelle course : catégories FFA par défaut ; course existante : son réglage (saisie libre si jamais réglé)
@@ -234,6 +245,7 @@ async function editerCourse(c) {
   const valeurs = {
     nom, date: f.date.value || null, heure: f.heure.value || null, lieu: f.lieu.value.trim(),
     distance: Number.isFinite(distance) ? distance : null, type: f.type.value.trim(), themeId: f.themeId.value || null,
+    plageDossards: lirePlage(f.dossardsDe.value, f.dossardsA.value),
     categories: f.categories.value, categoriesSexe: f.categoriesSexe.checked,
   };
   let cible = c;
@@ -535,38 +547,84 @@ $("#btnExporterParticipants").addEventListener("click", () => {
   catch (err) { toast(err.message, "err"); }
 });
 
-$("#btnDossards").addEventListener("click", async () => {
+// Attribution en deux temps : réglages (plage de la course, ou premier numéro forcé), puis aperçu
+let dossards = null; // { course, plage, aNumeroter, proposition }
+
+$("#btnDossards").addEventListener("click", () => {
   const c = course(courseSel);
   if (!c) return;
-  // Seuls les bulletins complets encore sans dossard sont numérotés : les dossards déjà donnés ne bougent pas
   const tous = inscritsDe(c.id);
-  const aNumeroter = tous.filter((i) => i.bulletin && !i.dossard).sort((a, b) =>
-    (a.ecole || "").localeCompare(b.ecole || "", "fr") || (a.nom || "").localeCompare(b.nom || "", "fr") || (a.prenom || "").localeCompare(b.prenom || "", "fr"));
-  if (!aNumeroter.length) {
+  const nb = tous.filter((i) => i.bulletin && !i.dossard).length;
+  if (!nb) {
     toast(tous.some((i) => i.bulletin) ? "Tous les bulletins complets ont déjà un dossard." : "Aucun bulletin complet : aucun dossard à attribuer.", "warn");
     return;
   }
-  // Numéros déjà pris dans la course (comparés en nombre : « 007 » occupe le 7), et première proposition à la suite
-  const pris = new Set(tous.filter((i) => i.dossard && /^\d+$/.test(String(i.dossard).trim())).map((i) => Number(i.dossard)));
-  const dlg = $("#dlgDossards");
-  dlg.querySelector("[name=debut]").value = pris.size ? Math.max(...pris) + 1 : 1;
-  $("#dossardsResume").textContent = `${aNumeroter.length} participant(s) à numéroter` +
-    (tous.length - aNumeroter.length ? ` · ${tous.filter((i) => i.dossard).length} dossard(s) déjà donné(s), conservé(s)` : "") + ".";
-  if (await ouvrirDialogue(dlg) !== "ok") return;
-  let n = parseInt(dlg.querySelector("[name=debut]").value, 10);
-  if (!Number.isFinite(n)) return;
-  const numeros = [];
-  aNumeroter.forEach((i) => {
-    while (pris.has(n)) n++; // on saute les numéros déjà attribués
-    i.dossard = String(n);
-    pris.add(n);
-    numeros.push(n);
-  });
+  const pris = calc.dossardsPris(c.id);
+  dossards = { course: c, plage: c.plageDossards || null, aNumeroter: nb, proposition: null };
+  const plage = dossards.plage;
+  $("#dossardsResume").textContent = `${nb} participant(s) au bulletin complet à numéroter` +
+    (pris.size ? ` · ${tous.filter((i) => i.dossard).length} dossard(s) déjà donné(s) : ils ne changent pas et leurs numéros sont sautés.` : ".");
+  if (plage) {
+    const libres = calc.libresDansPlage(c.id, plage);
+    $("#dossardsPlageInfo").textContent = `Plage de dossards de la course : ${plageTexte(plage)}` +
+      (libres != null ? ` · ${libres} numéro(s) libre(s) pour ${nb} participant(s).` : ".");
+  } else {
+    $("#dossardsPlageInfo").textContent = "Pas de plage de dossards pour cette course : elle se règle dans la fiche course (bouton « Modifier »).";
+  }
+  $("#dossardsForcerLigne").hidden = !plage;
+  $("#dossardsForcer").checked = false;
+  $("#dossardsDebut").value = pris.size ? Math.max(...pris) + 1 : 1;
+  rendreForcer();
+  etapeDossards(1);
+  $("#dlgDossards").showModal();
+});
+
+/** Avec une plage, le premier numéro n'est demandé que si on force ; sans plage, il l'est toujours. */
+function rendreForcer() {
+  $("#dossardsDebutLigne").hidden = !!dossards.plage && !$("#dossardsForcer").checked;
+}
+$("#dossardsForcer").addEventListener("change", () => { rendreForcer(); $("#dossardsErreur").textContent = ""; });
+
+function etapeDossards(n) {
+  $("#dossardsReglages").hidden = n !== 1;
+  $("#dossardsApercu").hidden = n !== 2;
+  $("#btnDossardsApercu").hidden = n !== 1;
+  $("#btnDossardsValider").hidden = n !== 2;
+  $("#btnDossardsRetour").hidden = n !== 2;
+  $("#dossardsErreur").textContent = "";
+}
+
+$("#btnDossardsApercu").addEventListener("click", () => {
+  const { course: c, plage } = dossards;
+  const force = !plage || $("#dossardsForcer").checked;
+  const debut = force ? parseInt($("#dossardsDebut").value, 10) : plage[0];
+  if (!Number.isInteger(debut) || debut < 0) { $("#dossardsErreur").textContent = "Indiquez un premier numéro valide."; return; }
+  const r = calc.proposerDossards(c.id, debut, force ? null : plage[1]);
+  if (r.manque) {
+    $("#dossardsErreur").textContent = `La plage ${plageTexte(plage)} est trop petite : il manque ${r.manque} numéro(s). ` +
+      "Agrandissez-la dans la fiche course, ou cochez « Forcer un autre premier numéro ».";
+    return;
+  }
+  dossards.proposition = r.attributions;
+  $("#tableApercu").innerHTML = r.attributions.map(({ inscrit: i, numero }) =>
+    `<tr><td><b>${numero}</b></td><td>${esc(i.nom)}</td><td>${esc(i.prenom)}</td><td>${esc(i.ecole)}</td><td>${esc(i.categorie)}</td></tr>`).join("");
+  const nums = r.attributions.map((l) => l.numero);
+  $("#dossardsResume").textContent = `Aperçu : ${nums.length} dossard(s), de ${nums[0]} à ${nums[nums.length - 1]}` +
+    (force && plage ? " (premier numéro forcé, hors plage de la course)" : "") + ". Rien n'est encore enregistré.";
+  etapeDossards(2);
+});
+
+$("#btnDossardsRetour").addEventListener("click", () => etapeDossards(1));
+$("#btnDossardsAnnuler").addEventListener("click", () => $("#dlgDossards").close());
+
+$("#btnDossardsValider").addEventListener("click", async () => {
+  const { proposition } = dossards;
+  proposition.forEach(({ inscrit: i, numero }) => { i.dossard = String(numero); });
   await store.sauver();
+  $("#dlgDossards").close();
   rendre();
-  const sautes = numeros[numeros.length - 1] - numeros[0] + 1 - numeros.length;
-  toast(`${numeros.length} dossard(s) attribué(s), de ${numeros[0]} à ${numeros[numeros.length - 1]}` +
-    (sautes ? ` (${sautes} numéro(s) déjà pris sauté(s))` : "") + ". Les dossards existants n'ont pas changé.");
+  const nums = proposition.map((p) => p.numero).sort((a, b) => a - b);
+  toast(`${nums.length} dossard(s) attribué(s), de ${nums[0]} à ${nums[nums.length - 1]}. Les dossards existants n'ont pas changé.`);
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -823,7 +881,7 @@ function rendreResultats() {
   ["#btnPdf", "#btnExcelResultats", "#btnArchiver"].forEach((s) => { $(s).disabled = vide; });
   $("#resultatsInfo").textContent = c ? (vide ? "Aucun temps pour cette course : donnez le départ dans l'onglet Chronomètre." : res.info) : "Choisissez une course.";
 
-  $$(".seg__btn").forEach((b) => b.classList.toggle("is-on", b.dataset.seg === segment));
+  $$(".seg__btn[data-seg]").forEach((b) => b.classList.toggle("is-on", b.dataset.seg === segment));
   $("#segIndividuel").hidden = segment !== "individuel";
   $("#segEcoles").hidden = segment !== "ecoles";
 
@@ -848,7 +906,7 @@ function rendreResultats() {
 }
 
 $("#resultatsCourse").addEventListener("change", (e) => { resultatsSel = e.target.value || null; rendreResultats(); });
-$$(".seg__btn").forEach((b) => b.addEventListener("click", () => { segment = b.dataset.seg; rendreResultats(); }));
+$$(".seg__btn[data-seg]").forEach((b) => b.addEventListener("click", () => { segment = b.dataset.seg; rendreResultats(); }));
 
 function pdfCourse(c) {
   return genererPdf({ course: c, theme: theme(c.themeId), res: calc.resultats(c.id) });

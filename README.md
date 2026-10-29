@@ -15,6 +15,7 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
 | `js/excel.js` | Import / export Excel et modèle d'import (SheetJS) |
 | `js/pdf.js` | Feuille de résultats PDF selon le thème de la course (jsPDF + AutoTable) |
 | `baremes.json` | Barèmes officiels des catégories automatiques (FFA, FFTri, UNSS, classes), mis à jour sur tous les postes |
+| `outils/nouvelle-version.py` | Numéro de version des fichiers, à augmenter avant chaque mise en ligne |
 | `sw.js` | Cache hors ligne : une fois ouverte avec du réseau, l'application fonctionne sans |
 | `manifest.webmanifest` | Installation en application sur PC (nom, icônes `assets/chrono-app-*.png`, raccourcis) |
 | `styles.css` | DA Loopace vert sombre & citron, thème clair au choix (même réglage que les autres sites) |
@@ -38,6 +39,9 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    sur l'officiel, inclus dans la sauvegarde) ; « Revenir au barème officiel » annule cette modification. Inscrire les participants (à la main, ou bouton « Excel » → Importer, avec Nom, Sexe et Né obligatoires sur chaque ligne ; la même fenêtre exporte la liste et donne le modèle), cocher
    « Bulletin » pour ceux qui prennent le départ, puis éventuellement « Attribuer les dossards » : seuls les
    bulletins complets encore sans dossard sont numérotés, les dossards déjà donnés ne changent jamais.
+   La fiche course peut fixer une plage de dossards (ex. 100 à 199) : l'attribution la respecte et prévient
+   si elle est trop petite ; une case permet de forcer un autre premier numéro. Un aperçu « qui reçoit quel
+   numéro » s'affiche avant de valider.
    La liste des participants se filtre (bulletin incomplet, sans dossard, école, catégorie) et se trie en
    cliquant sur une colonne. Réimporter un fichier ne crée pas de doublons : une personne déjà inscrite
    (même nom et prénom, même année si connue) est complétée, sans perdre son dossard ni son bulletin complet.
@@ -85,6 +89,10 @@ Puis ouvrir http://localhost:5520 (l'application a besoin de http, pas d'un simp
 ## Mettre le site en ligne (GitHub Pages)
 
 Dépôt : https://github.com/Rmartin86580/Loopace-Chrono
+
+**Avant chaque mise en ligne**, lancer `python outils/nouvelle-version.py` : il augmente le numéro de version
+(`?v=N`) de tous les fichiers de code et le nom du cache hors ligne, pour que les navigateurs chargent bien
+la nouvelle version de chaque fichier au lieu de mélanger ancien et nouveau.
 
 Settings → Pages → « Deploy from a branch » → branche `main`, dossier `/ (root)`.
 Le module est alors en ligne sur https://rmartin86580.github.io/Loopace-Chrono/ (adresse à utiliser pour

@@ -1,7 +1,7 @@
 // Logique métier : départ, arrivées, arrêt, classements individuel et par école.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe } from "./store.js";
+import { state, course, inscritsDe } from "./store.js?v=6";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");
@@ -301,6 +301,44 @@ export function appliquerCategories(courseId) {
 export function recalculerBareme(cle, seulementAVenir = false) {
   const courses = state.courses.filter((c) => c.categories === cle && (!seulementAVenir || etatChrono(c).etat === "attente"));
   return { courses: courses.length, modifiees: courses.reduce((n, c) => n + appliquerCategories(c.id), 0) };
+}
+
+// ── Attribution des dossards ──────────────────────────────────
+// Seuls les bulletins complets encore sans dossard sont numérotés, triés par école puis par nom ;
+// les dossards déjà donnés ne bougent jamais et leurs numéros sont sautés.
+const fr = (a, b) => String(a || "").localeCompare(String(b || ""), "fr", { numeric: true });
+const ordreNom = (a, b) => fr(a.ecole, b.ecole) || fr(a.nom, b.nom) || fr(a.prenom, b.prenom);
+
+/** Numéros déjà pris dans la course (comparés en nombre : « 007 » occupe le 7). */
+export function dossardsPris(courseId) {
+  return new Set(inscritsDe(courseId).filter((i) => i.dossard && /^\d+$/.test(String(i.dossard).trim())).map((i) => Number(i.dossard)));
+}
+
+/** Nombre de numéros encore libres dans une plage (null si la plage n'a pas de fin). */
+export function libresDansPlage(courseId, [de, a]) {
+  if (a == null) return null;
+  const pris = dossardsPris(courseId);
+  let n = 0;
+  for (let k = de; k <= a; k++) if (!pris.has(k)) n++;
+  return n;
+}
+
+/**
+ * Calcule l'attribution sans rien modifier (pour l'aperçu), du numéro « debut » jusqu'à « fin » au plus.
+ * @returns {{attributions: {inscrit: object, numero: number}[], manque: number}} manque > 0 : plage trop petite
+ */
+export function proposerDossards(courseId, debut, fin = null) {
+  const pris = dossardsPris(courseId);
+  const aNumeroter = inscritsDe(courseId).filter((i) => i.bulletin && !i.dossard).sort(ordreNom);
+  const attributions = [];
+  let n = debut;
+  for (const i of aNumeroter) {
+    while (pris.has(n)) n++;
+    if (fin != null && n > fin) return { attributions: [], manque: aNumeroter.length - attributions.length };
+    pris.add(n);
+    attributions.push({ inscrit: i, numero: n });
+  }
+  return { attributions, manque: 0 };
 }
 
 export function nbInscrits(courseId) { return state.inscrits.filter((i) => i.courseId === courseId).length; }

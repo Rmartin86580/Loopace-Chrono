@@ -151,6 +151,12 @@ select.input { cursor: pointer; }
   .excel { grid-template-columns: minmax(0, 1fr); }
   .excel__col + .excel__col { border-left: 0; border-top: 1px solid var(--line); }
 }
+.dlg--dossards { width: min(760px, 100% - 32px); }
+.plages { max-height: 46vh; }
+.input--num { width: 8rem; min-width: 0 !important; }
+.plage-info { padding: .7rem .9rem; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); font-size: .9rem; }
+#dossardsReglages { display: flex; flex-direction: column; align-items: flex-start; gap: .7rem; }
+#dossardsReglages[hidden] { display: none; }
 .dup-options { display: flex; flex-direction: column; gap: .5rem; padding-left: 1.75rem; }
 .dup-options[aria-disabled="true"] { opacity: .4; pointer-events: none; }
 .field__hint { font-style: normal; font-weight: 500; color: var(--accent); }

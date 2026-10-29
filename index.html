@@ -16,14 +16,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1">
+  <link rel="stylesheet" href="styles.css?v=6">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
   <!-- Excel (SheetJS) et PDF (jsPDF + AutoTable) : mis en cache par le service worker pour fonctionner hors ligne -->
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=1"></script>
+  <script type="module" src="js/app.js?v=6"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -289,6 +289,8 @@
         <label class="field"><span>Lieu</span><input class="input" name="lieu" maxlength="200"></label>
         <label class="field"><span>Distance (km)</span><input class="input" name="distance" inputmode="decimal" placeholder="ex : 5 ou 2,4"></label>
         <label class="field"><span>Type</span><input class="input" name="type" list="typesCourse" placeholder="Route, Cross, Trail…"></label>
+        <label class="field"><span>Dossards : premier numéro</span><input class="input" type="number" min="0" name="dossardsDe" placeholder="ex : 100"></label>
+        <label class="field"><span>Dernier numéro (facultatif)</span><input class="input" type="number" min="0" name="dossardsA" placeholder="ex : 199"></label>
         <label class="field"><span>Thème PDF</span><select class="input" name="themeId" id="selectTheme"></select></label>
         <label class="field field--full"><span>Catégories</span><select class="input" name="categories" id="selectBareme"></select></label>
         <label class="check field--full" id="champCategoriesSexe"><input type="checkbox" name="categoriesSexe"> Séparer filles et garçons (ex. « Minimes F », « Minimes M »)</label>
@@ -416,17 +418,37 @@
     </form>
   </dialog>
 
-  <dialog class="dlg" id="dlgDossards">
-    <form method="dialog" class="dlg__body">
+  <dialog class="dlg dlg--dossards" id="dlgDossards">
+    <div class="dlg__body">
       <h3>Attribuer les dossards</h3>
-      <p class="meta">Les participants au bulletin complet qui n'ont pas encore de dossard sont numérotés à la suite, triés par école puis par nom. Les dossards déjà donnés ne changent pas et leurs numéros sont sautés.</p>
       <p class="meta" id="dossardsResume"></p>
-      <label class="field"><span>Premier numéro</span><input class="input" type="number" name="debut" min="0" value="1" required></label>
-      <div class="dlg__actions">
-        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
-        <button class="btn" value="ok">Attribuer</button>
+
+      <!-- Étape 1 : réglages -->
+      <div id="dossardsReglages">
+        <p class="plage-info" id="dossardsPlageInfo"></p>
+        <label class="check" id="dossardsForcerLigne"><input type="checkbox" id="dossardsForcer"> Forcer un autre premier numéro (sans tenir compte de la plage)</label>
+        <label class="field field--inline" id="dossardsDebutLigne"><span>Premier numéro</span><input class="input input--num" type="number" id="dossardsDebut" min="0"></label>
+        <p class="meta">Numérotés à la suite, triés par école puis par nom.</p>
       </div>
-    </form>
+
+      <!-- Étape 2 : aperçu -->
+      <div id="dossardsApercu" hidden>
+        <div class="table-wrap plages">
+          <table class="table table--compact table--nowrap">
+            <thead><tr><th>Dossard</th><th>Nom</th><th>Prénom</th><th>École / Club</th><th>Catégorie</th></tr></thead>
+            <tbody id="tableApercu"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="dlg__error" id="dossardsErreur"></p>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost dlg__left" id="btnDossardsRetour" hidden>← Modifier les réglages</button>
+        <button type="button" class="btn btn--ghost" id="btnDossardsAnnuler">Annuler</button>
+        <button type="button" class="btn" id="btnDossardsApercu">Voir l'aperçu</button>
+        <button type="button" class="btn" id="btnDossardsValider" hidden><svg class="ico"><use href="#i-check"/></svg>Attribuer</button>
+      </div>
+    </div>
   </dialog>
 
   <dialog class="dlg" id="dlgBareme">
