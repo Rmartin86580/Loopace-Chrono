@@ -226,6 +226,11 @@
           <div class="options">
             <label class="check"><input type="checkbox" id="optSon"> Bip à chaque arrivée</label>
             <p class="meta">Un bip confirme chaque arrivée, deux bips graves signalent une erreur, une mélodie la fin de course. Pratique avec une douchette.</p>
+            <label class="volume" for="optVolume">
+              <span>Volume</span>
+              <input type="range" id="optVolume" min="0" max="100" step="5">
+              <output id="valeurVolume" for="optVolume"></output>
+            </label>
             <button type="button" class="btn btn--ghost btn--sm" id="btnTesterSon"><svg class="ico"><use href="#i-sound"/></svg>Tester le son</button>
           </div>
         </div>

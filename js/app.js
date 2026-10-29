@@ -501,45 +501,85 @@ $("#btnRaz").addEventListener("click", async () => {
 
 // ── Bips d'arrivée : utiles avec une douchette, on regarde les coureurs et pas l'écran ─
 // Réglage mémorisé sur ce poste ; sons générés à la volée (Web Audio), aucun fichier à charger.
+// Pensés pour s'entendre dans le bruit d'une arrivée : ondes carrées riches en harmoniques, autour de 2,7 kHz
+// (fréquence où l'oreille est la plus sensible, celle des buzzers), puis un limiteur qui pousse le niveau
+// au maximum que la carte son peut sortir sans craquer.
 const CLE_SON = "loopace-chrono-son";
+const CLE_VOLUME = "loopace-chrono-volume";
 let sonActif = true;
-try { sonActif = localStorage.getItem(CLE_SON) !== "off"; } catch { /* stockage indisponible */ }
-let audio = null;
+let volume = 70; // en %, courbe au carré pour suivre l'oreille
+try {
+  sonActif = localStorage.getItem(CLE_SON) !== "off";
+  const v = parseInt(localStorage.getItem(CLE_VOLUME), 10);
+  if (Number.isFinite(v)) volume = Math.min(100, Math.max(0, v));
+} catch { /* stockage indisponible */ }
+let audio = null, sortie = null;
 
 function bip(notes) {
-  if (!sonActif) return;
+  if (!sonActif || volume === 0) return;
   try {
-    audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (!audio) {
+      audio = new (window.AudioContext || window.webkitAudioContext)();
+      const limiteur = audio.createDynamicsCompressor();
+      limiteur.threshold.value = -3;
+      limiteur.knee.value = 0;
+      limiteur.ratio.value = 20;
+      limiteur.attack.value = 0.001;
+      limiteur.release.value = 0.05;
+      sortie = audio.createGain();
+      sortie.connect(limiteur).connect(audio.destination);
+    }
     if (audio.state === "suspended") audio.resume();
+    // Au-delà de 50 % le signal est volontairement saturé puis tenu par le limiteur : plus fort, sans craquement
+    sortie.gain.value = 4 * (volume / 100) ** 2;
     let t = audio.currentTime + 0.01;
-    notes.forEach(([freq, duree, type = "sine"]) => {
+    notes.forEach(([freq, duree, type = "square"]) => {
       const osc = audio.createOscillator();
-      const gain = audio.createGain();
+      const env = audio.createGain();
       osc.type = type;
       osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + duree);
-      osc.connect(gain).connect(audio.destination);
+      env.gain.setValueAtTime(0.0001, t);
+      env.gain.exponentialRampToValueAtTime(1, t + 0.005);
+      env.gain.setValueAtTime(1, t + duree - 0.03);
+      env.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+      osc.connect(env).connect(sortie);
       osc.start(t);
       osc.stop(t + duree + 0.02);
-      t += duree + 0.05;
+      t += duree + 0.06;
     });
   } catch { /* pas de son disponible : on continue sans */ }
 }
-const BIP_OK = [[1320, 0.09]];
-const BIP_ERREUR = [[220, 0.16, "square"], [220, 0.16, "square"]];
-const BIP_FIN = [[880, 0.12], [1175, 0.12], [1568, 0.24]];
+const BIP_OK = [[2700, 0.16]];
+const BIP_ERREUR = [[440, 0.24, "sawtooth"], [330, 0.36, "sawtooth"]];
+const BIP_FIN = [[1760, 0.14], [2350, 0.14], [2960, 0.34]];
 
-// Réglage dans Administration → Options
-$("#optSon").checked = sonActif;
+// Réglages dans Administration → Options
+function rendreOptionsSon() {
+  $("#optSon").checked = sonActif;
+  $("#optVolume").value = volume;
+  $("#optVolume").disabled = !sonActif;
+  $("#valeurVolume").textContent = volume ? `${volume} %` : "muet";
+  $("#optVolume").style.setProperty("--rempli", `${volume}%`);
+}
+rendreOptionsSon();
 $("#optSon").addEventListener("change", (e) => {
   sonActif = e.target.checked;
   try { localStorage.setItem(CLE_SON, sonActif ? "on" : "off"); } catch { /* stockage indisponible */ }
+  rendreOptionsSon();
+  bip(BIP_OK);
+});
+$("#optVolume").addEventListener("input", (e) => {
+  volume = parseInt(e.target.value, 10);
+  rendreOptionsSon();
+});
+// Bip d'essai et mémorisation une fois le curseur lâché (pas à chaque cran)
+$("#optVolume").addEventListener("change", () => {
+  try { localStorage.setItem(CLE_VOLUME, String(volume)); } catch { /* stockage indisponible */ }
   bip(BIP_OK);
 });
 $("#btnTesterSon").addEventListener("click", () => {
   if (!sonActif) { toast("Le bip est désactivé : cochez « Bip à chaque arrivée » pour l'entendre.", "warn"); return; }
+  if (!volume) { toast("Le volume est à zéro : montez le curseur pour entendre le bip.", "warn"); return; }
   bip(BIP_OK);
   setTimeout(() => bip(BIP_ERREUR), 500);
   setTimeout(() => bip(BIP_FIN), 1300);

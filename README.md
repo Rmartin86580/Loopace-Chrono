@@ -33,7 +33,8 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
 2. **Chronomètre** : choisir la course, « DÉPART » (tous les bulletins complets partent ensemble), taper le
    dossard à chaque arrivée puis Entrée (ou le scanner avec une douchette USB réglée en clavier AZERTY,
    suffixe Entrée). Un bip confirme chaque arrivée, un bip grave signale une erreur, une petite mélodie la
-   fin de course ; **Administration → Options** permet de couper le son et de le tester (réglage mémorisé sur ce poste).
+   fin de course ; **Administration → Options** permet de couper le son, de régler son volume et de le tester
+   (réglages mémorisés sur ce poste).
    « Annuler la dernière arrivée » corrige une erreur de saisie.
    Le chrono s'arrête seul quand tout le monde est arrivé ; « ARRÊT » classe DNF ceux qui sont encore en course.
    « Écran public » ouvre une fenêtre à placer sur le second écran (bouton Plein écran).
