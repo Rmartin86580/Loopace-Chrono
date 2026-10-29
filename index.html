@@ -347,7 +347,8 @@
   <dialog class="dlg" id="dlgDossards">
     <form method="dialog" class="dlg__body">
       <h3>Attribuer les dossards</h3>
-      <p class="meta">Les participants dont le bulletin est complet sont numérotés à la suite, triés par école puis par nom. Les autres n'ont plus de dossard.</p>
+      <p class="meta">Les participants au bulletin complet qui n'ont pas encore de dossard sont numérotés à la suite, triés par école puis par nom. Les dossards déjà donnés ne changent pas et leurs numéros sont sautés.</p>
+      <p class="meta" id="dossardsResume"></p>
       <label class="field"><span>Premier numéro</span><input class="input" type="number" name="debut" min="0" value="1" required></label>
       <div class="dlg__actions">
         <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>

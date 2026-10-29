@@ -29,7 +29,8 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    le barème ou la date. Une catégorie corrigée à la main dans la fiche participant (redoublement, avance…)
    est conservée lors des recalculs ; vider le champ revient au calcul. Sans année de naissance, la catégorie
    reste saisie à la main. Inscrire les participants (à la main ou « Importer Excel »), cocher
-   « Bulletin » pour ceux qui prennent le départ, puis éventuellement « Attribuer les dossards ».
+   « Bulletin » pour ceux qui prennent le départ, puis éventuellement « Attribuer les dossards » : seuls les
+   bulletins complets encore sans dossard sont numérotés, les dossards déjà donnés ne changent jamais.
 2. **Chronomètre** : choisir la course, « DÉPART » (tous les bulletins complets partent ensemble), taper le
    dossard à chaque arrivée puis Entrée (ou le scanner avec une douchette USB réglée en clavier AZERTY,
    suffixe Entrée). Un bip confirme chaque arrivée, un bip grave signale une erreur, une petite mélodie la

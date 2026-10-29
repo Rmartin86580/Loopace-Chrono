@@ -376,19 +376,35 @@ $("#btnExporterParticipants").addEventListener("click", () => {
 $("#btnDossards").addEventListener("click", async () => {
   const c = course(courseSel);
   if (!c) return;
+  // Seuls les bulletins complets encore sans dossard sont numérotés : les dossards déjà donnés ne bougent pas
+  const tous = inscritsDe(c.id);
+  const aNumeroter = tous.filter((i) => i.bulletin && !i.dossard).sort((a, b) =>
+    (a.ecole || "").localeCompare(b.ecole || "", "fr") || (a.nom || "").localeCompare(b.nom || "", "fr") || (a.prenom || "").localeCompare(b.prenom || "", "fr"));
+  if (!aNumeroter.length) {
+    toast(tous.some((i) => i.bulletin) ? "Tous les bulletins complets ont déjà un dossard." : "Aucun bulletin complet : aucun dossard à attribuer.", "warn");
+    return;
+  }
+  // Numéros déjà pris dans la course (comparés en nombre : « 007 » occupe le 7), et première proposition à la suite
+  const pris = new Set(tous.filter((i) => i.dossard && /^\d+$/.test(String(i.dossard).trim())).map((i) => Number(i.dossard)));
   const dlg = $("#dlgDossards");
+  dlg.querySelector("[name=debut]").value = pris.size ? Math.max(...pris) + 1 : 1;
+  $("#dossardsResume").textContent = `${aNumeroter.length} participant(s) à numéroter` +
+    (tous.length - aNumeroter.length ? ` · ${tous.filter((i) => i.dossard).length} dossard(s) déjà donné(s), conservé(s)` : "") + ".";
   if (await ouvrirDialogue(dlg) !== "ok") return;
   let n = parseInt(dlg.querySelector("[name=debut]").value, 10);
   if (!Number.isFinite(n)) return;
-  const debut = n;
-  const tous = inscritsDe(c.id);
-  const avec = tous.filter((i) => i.bulletin).sort((a, b) =>
-    (a.ecole || "").localeCompare(b.ecole || "", "fr") || (a.nom || "").localeCompare(b.nom || "", "fr") || (a.prenom || "").localeCompare(b.prenom || "", "fr"));
-  avec.forEach((i) => { i.dossard = String(n++); });
-  tous.filter((i) => !i.bulletin).forEach((i) => { i.dossard = null; });
+  const numeros = [];
+  aNumeroter.forEach((i) => {
+    while (pris.has(n)) n++; // on saute les numéros déjà attribués
+    i.dossard = String(n);
+    pris.add(n);
+    numeros.push(n);
+  });
   await store.sauver();
   rendre();
-  toast(avec.length ? `${avec.length} dossard(s) attribué(s), de ${debut} à ${n - 1}. ${tous.length - avec.length} sans bulletin laissé(s) sans dossard.` : "Aucun bulletin complet : aucun dossard attribué.", avec.length ? "ok" : "warn");
+  const sautes = numeros[numeros.length - 1] - numeros[0] + 1 - numeros.length;
+  toast(`${numeros.length} dossard(s) attribué(s), de ${numeros[0]} à ${numeros[numeros.length - 1]}` +
+    (sautes ? ` (${sautes} numéro(s) déjà pris sauté(s))` : "") + ". Les dossards existants n'ont pas changé.");
 });
 
 // ══════════════════════════════════════════════════════════════
