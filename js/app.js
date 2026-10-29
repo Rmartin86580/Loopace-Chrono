@@ -846,13 +846,16 @@ function rendreBareme() {
   const ref = refBareme();
   const civile = $("#admTypeSaison").value === "civile";
   const perso = state.baremes?.[baremeCle];
-  $("#admSaisonRef").textContent = `Années de naissance pour la saison ${civile ? ref : `${ref - 1}-${ref}`}. Laissez « Nés de » vide pour « et avant », « à » vide pour « et après ».`;
-  const chip = $("#admEtatBareme");
+  $("#admSaisonRef").textContent = `Années de naissance, saison ${civile ? ref : `${ref - 1}-${ref}`} (case vide = « et avant » / « et après »).`;
+  // Carte : état enregistré ; fenêtre d'édition : même état, ou « modifications non enregistrées »
   const version = calc.versionBaremes();
-  chip.textContent = baremeModifie ? "Modifications non enregistrées"
-    : perso ? `Modifié à la main le ${new Date(perso.modifie).toLocaleDateString("fr-FR")}`
+  const etat = perso ? `Modifié à la main le ${new Date(perso.modifie).toLocaleDateString("fr-FR")}`
     : version ? `Barème officiel à jour (version du ${fmtDate(version)})` : "Barème intégré";
-  chip.className = `chip${baremeModifie ? " chip--en-cours" : perso ? " chip--arretee" : ""}`;
+  $("#admEtatBareme").textContent = etat;
+  $("#admEtatBareme").className = `chip${perso ? " chip--arretee" : ""}`;
+  $("#admEtatEdition").textContent = baremeModifie ? "Modifications non enregistrées" : etat;
+  $("#admEtatEdition").className = `chip${baremeModifie ? " chip--en-cours" : perso ? " chip--arretee" : ""}`;
+  $("#dlgBaremeTitre").textContent = `Modifier le barème ${calc.BAREMES[baremeCle].nom.replace("Automatique — ", "")}`;
   $("#btnRetablirBareme").disabled = !perso && !baremeModifie;
   $("#admErreurBareme").textContent = "";
   $("#admTranches").innerHTML = baremeLignes.map((l, k) => `<tr data-k="${k}">
@@ -865,20 +868,28 @@ function rendreBareme() {
 
 function marquerBaremeModifie() {
   baremeModifie = true;
-  const chip = $("#admEtatBareme");
+  const chip = $("#admEtatEdition");
   chip.textContent = "Modifications non enregistrées";
   chip.className = "chip chip--en-cours";
   $("#btnRetablirBareme").disabled = false;
 }
 
-$("#admBareme").addEventListener("change", async (e) => {
-  if (baremeModifie && !await confirmer("Changer de barème", "Les modifications non enregistrées de ce barème seront perdues.", { oui: "Continuer" })) {
-    e.target.value = baremeCle;
-    return;
-  }
+$("#admBareme").addEventListener("change", (e) => {
   baremeCle = e.target.value;
   chargerBareme();
 });
+
+// L'édition se fait dans une fenêtre, pour ne pas bousculer les autres cartes de l'Administration
+$("#btnModifierBareme").addEventListener("click", () => {
+  chargerBareme();
+  $("#dlgBareme").showModal();
+});
+function fermerBareme() {
+  $("#dlgBareme").close();
+  chargerBareme(); // abandonne les modifications non enregistrées
+}
+$("#btnFermerBareme").addEventListener("click", fermerBareme);
+$("#dlgBareme").addEventListener("cancel", (e) => { e.preventDefault(); fermerBareme(); });
 $("#admTypeSaison").addEventListener("change", () => { baremeModifie = true; rendreBareme(); });
 $("#admTranches").addEventListener("input", (e) => {
   const champ = e.target.dataset.champ;
@@ -921,18 +932,18 @@ $("#btnEnregistrerBareme").addEventListener("click", async () => {
   state.baremes[baremeCle] = { tranches, civile: $("#admTypeSaison").value === "civile", modifie: Date.now() };
   const r = calc.recalculerBareme(baremeCle);
   await store.sauver();
-  chargerBareme();
+  fermerBareme();
   toast(`Barème ${calc.BAREMES[baremeCle].nom.replace("Automatique — ", "")} enregistré.` +
     (r.courses ? ` ${r.courses} course(s) recalculée(s), ${r.modifiees} catégorie(s) changée(s).` : ""));
 });
 
 $("#btnRetablirBareme").addEventListener("click", async () => {
-  if (!state.baremes?.[baremeCle]) { chargerBareme(); return; } // seulement des modifications non enregistrées
+  if (!state.baremes?.[baremeCle]) { chargerBareme(); return; } // seulement des modifications non enregistrées : on les annule
   if (!await confirmer("Revenir au barème officiel", "Abandonner la modification manuelle et revenir au barème officiel, mis à jour automatiquement ? Les courses qui l'utilisent seront recalculées.", { oui: "Revenir au barème officiel" })) return;
   delete state.baremes[baremeCle];
   const r = calc.recalculerBareme(baremeCle);
   await store.sauver();
-  chargerBareme();
+  fermerBareme();
   toast("Barème officiel rétabli : il suivra de nouveau les mises à jour automatiques." + (r.modifiees ? ` ${r.modifiees} catégorie(s) changée(s).` : ""));
 });
 

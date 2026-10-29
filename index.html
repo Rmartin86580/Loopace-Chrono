@@ -221,32 +221,6 @@
         <div class="themes" id="grilleThemes"></div>
       </div>
 
-      <div class="card">
-        <div class="card__head card__head--wrap">
-          <div><h2>Catégories automatiques</h2><p class="meta">Mis à jour automatiquement : les années de naissance avancent toutes seules à chaque saison, et quand une fédération change ses catégories, le nouveau barème arrive sur tous les postes au lancement suivant (avec du réseau). Les courses pas encore parties sont alors recalculées. Vous pouvez aussi modifier un barème à la main ci-dessous : votre version reste prioritaire.</p></div>
-        </div>
-        <div class="toolbar">
-          <div class="actions">
-            <label class="field field--inline"><span>Barème</span><select class="input" id="admBareme"></select></label>
-            <label class="field field--inline"><span>Saison</span><select class="input" id="admTypeSaison"><option value="scolaire">1er septembre → 31 août</option><option value="civile">Année civile</option></select></label>
-          </div>
-          <span class="chip" id="admEtatBareme"></span>
-        </div>
-        <p class="meta" id="admSaisonRef"></p>
-        <div class="table-wrap bareme">
-          <table class="table">
-            <thead><tr><th>Catégorie</th><th>Nés de</th><th>à</th><th class="r"></th></tr></thead>
-            <tbody id="admTranches"></tbody>
-          </table>
-        </div>
-        <p class="dlg__error" id="admErreurBareme"></p>
-        <div class="actions bareme__actions">
-          <button type="button" class="btn btn--ghost btn--sm" id="btnAjouterTranche"><svg class="ico"><use href="#i-plus"/></svg>Ajouter une catégorie</button>
-          <button type="button" class="btn btn--ghost btn--sm" id="btnRetablirBareme"><svg class="ico"><use href="#i-reset"/></svg>Revenir au barème officiel</button>
-          <button type="button" class="btn btn--sm" id="btnEnregistrerBareme"><svg class="ico"><use href="#i-check"/></svg>Enregistrer et recalculer</button>
-        </div>
-      </div>
-
       <div class="admin-grid">
         <div class="card">
           <h2>Options</h2>
@@ -261,6 +235,15 @@
             </label>
             <button type="button" class="btn btn--ghost btn--sm" id="btnTesterSon"><svg class="ico"><use href="#i-sound"/></svg>Tester le son</button>
           </div>
+        </div>
+        <div class="card">
+          <h2>Catégories automatiques</h2>
+          <p class="meta">Barèmes mis à jour automatiquement sur tous les postes ; les années avancent seules à chaque saison.</p>
+          <div class="bareme__ligne">
+            <select class="input" id="admBareme" aria-label="Barème"></select>
+            <span class="chip" id="admEtatBareme"></span>
+          </div>
+          <button type="button" class="btn btn--ghost btn--sm bareme__modifier" id="btnModifierBareme"><svg class="ico"><use href="#i-edit"/></svg>Modifier à la main</button>
         </div>
         <div class="card">
           <h2>Import Excel</h2>
@@ -404,6 +387,31 @@
         <button class="btn" value="ok">Attribuer</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlgBareme">
+    <div class="dlg__body dlg__body--wide">
+      <h3 id="dlgBaremeTitre">Modifier le barème</h3>
+      <p class="meta">Votre version reste prioritaire sur les mises à jour automatiques. Les courses qui utilisent ce barème sont recalculées à l'enregistrement.</p>
+      <div class="bareme__ligne">
+        <label class="field field--inline"><span>Saison</span><select class="input" id="admTypeSaison"><option value="scolaire">1er septembre → 31 août</option><option value="civile">Année civile</option></select></label>
+        <span class="chip" id="admEtatEdition"></span>
+      </div>
+      <p class="meta" id="admSaisonRef"></p>
+      <div class="table-wrap bareme">
+        <table class="table">
+          <thead><tr><th>Catégorie</th><th>Nés de</th><th>à</th><th class="r"></th></tr></thead>
+          <tbody id="admTranches"></tbody>
+        </table>
+      </div>
+      <p class="dlg__error" id="admErreurBareme"></p>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost btn--sm dlg__left" id="btnAjouterTranche"><svg class="ico"><use href="#i-plus"/></svg>Ajouter une catégorie</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="btnRetablirBareme"><svg class="ico"><use href="#i-reset"/></svg>Revenir au barème officiel</button>
+        <button type="button" class="btn btn--ghost" id="btnFermerBareme">Annuler</button>
+        <button type="button" class="btn" id="btnEnregistrerBareme"><svg class="ico"><use href="#i-check"/></svg>Enregistrer et recalculer</button>
+      </div>
+    </div>
   </dialog>
 
   <dialog class="dlg" id="dlgConfirm">
