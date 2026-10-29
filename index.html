@@ -40,6 +40,7 @@
     <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
     <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M5 8.5V20h14V8.5M10 12.5h4"/></symbol>
     <symbol id="i-hash" viewBox="0 0 24 24"><path d="M9.5 4 8 20M16 4l-1.5 16M4.5 9h15M4 15h15"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></symbol>
     <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
@@ -89,6 +90,7 @@
               </div>
               <div class="actions">
                 <button class="btn btn--ghost btn--sm" id="btnModifierCourse"><svg class="ico"><use href="#i-edit"/></svg>Modifier</button>
+                <button class="btn btn--ghost btn--sm" id="btnDupliquerCourse"><svg class="ico"><use href="#i-copy"/></svg>Dupliquer</button>
                 <button class="btn btn--ghost btn--sm btn--danger" id="btnSupprimerCourse"><svg class="ico"><use href="#i-trash"/></svg>Supprimer</button>
               </div>
             </div>
@@ -219,6 +221,32 @@
         <div class="themes" id="grilleThemes"></div>
       </div>
 
+      <div class="card">
+        <div class="card__head card__head--wrap">
+          <div><h2>Catégories automatiques</h2><p class="meta">Mis à jour automatiquement : les années de naissance avancent toutes seules à chaque saison, et quand une fédération change ses catégories, le nouveau barème arrive sur tous les postes au lancement suivant (avec du réseau). Les courses pas encore parties sont alors recalculées. Vous pouvez aussi modifier un barème à la main ci-dessous : votre version reste prioritaire.</p></div>
+        </div>
+        <div class="toolbar">
+          <div class="actions">
+            <label class="field field--inline"><span>Barème</span><select class="input" id="admBareme"></select></label>
+            <label class="field field--inline"><span>Saison</span><select class="input" id="admTypeSaison"><option value="scolaire">1er septembre → 31 août</option><option value="civile">Année civile</option></select></label>
+          </div>
+          <span class="chip" id="admEtatBareme"></span>
+        </div>
+        <p class="meta" id="admSaisonRef"></p>
+        <div class="table-wrap bareme">
+          <table class="table">
+            <thead><tr><th>Catégorie</th><th>Nés de</th><th>à</th><th class="r"></th></tr></thead>
+            <tbody id="admTranches"></tbody>
+          </table>
+        </div>
+        <p class="dlg__error" id="admErreurBareme"></p>
+        <div class="actions bareme__actions">
+          <button type="button" class="btn btn--ghost btn--sm" id="btnAjouterTranche"><svg class="ico"><use href="#i-plus"/></svg>Ajouter une catégorie</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="btnRetablirBareme"><svg class="ico"><use href="#i-reset"/></svg>Revenir au barème officiel</button>
+          <button type="button" class="btn btn--sm" id="btnEnregistrerBareme"><svg class="ico"><use href="#i-check"/></svg>Enregistrer et recalculer</button>
+        </div>
+      </div>
+
       <div class="admin-grid">
         <div class="card">
           <h2>Options</h2>
@@ -340,6 +368,27 @@
         <button type="button" class="btn btn--ghost btn--danger dlg__left" data-valeur="supprimer" id="btnSupprimerTheme">Supprimer</button>
         <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
         <button class="btn" value="ok">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlgDupliquer">
+    <form method="dialog" class="dlg__body" id="formDupliquer">
+      <h3>Dupliquer la course</h3>
+      <p class="meta">La copie reprend tous les réglages (lieu, distance, type, thème PDF, catégories). Les temps ne sont jamais copiés : elle démarre en attente.</p>
+      <div class="form-grid">
+        <label class="field field--full"><span>Nom de la nouvelle course *</span><input class="input" name="nom" required maxlength="200"></label>
+        <label class="field"><span>Date</span><input class="input" type="date" name="date"></label>
+        <label class="field"><span>Heure de départ</span><input class="input" type="time" name="heure"></label>
+        <label class="check field--full"><input type="checkbox" name="participants"> <span>Copier les participants (<span id="dupliquerNb"></span>)</span></label>
+        <div class="dup-options field--full" id="dupliquerOptions">
+          <label class="check"><input type="checkbox" name="dossards"> Garder leurs dossards</label>
+          <label class="check"><input type="checkbox" name="bulletins"> Garder l'état des bulletins (sinon tous à revalider)</label>
+        </div>
+      </div>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok">Dupliquer</button>
       </div>
     </form>
   </dialog>

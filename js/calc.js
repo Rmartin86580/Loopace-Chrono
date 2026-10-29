@@ -215,6 +215,36 @@ export const BAREMES = {
   },
 };
 
+// Barèmes officiels publiés avec le site (baremes.json), chargés au démarrage : ils remplacent ceux
+// ci-dessus, qui ne servent plus que de secours au tout premier lancement hors ligne.
+let baremesOfficiels = null;
+export function definirBaremesOfficiels(data) { baremesOfficiels = data; }
+export const versionBaremes = () => baremesOfficiels?.version || null;
+
+/** D'où vient le barème : « manuel » (modifié dans Administration), « officiel » (baremes.json) ou « integre ». */
+export function sourceBareme(cle) {
+  if (state.baremes?.[cle]) return "manuel";
+  return baremesOfficiels?.baremes?.[cle] ? "officiel" : "integre";
+}
+
+/**
+ * Barème effectif : la version modifiée à la main dans Administration (state.baremes) en priorité,
+ * sinon la version officielle publiée, sinon celle intégrée au code.
+ */
+export function bareme(cle) {
+  const base = BAREMES[cle];
+  if (!base?.tranches) return base;
+  const maj = state.baremes?.[cle] || baremesOfficiels?.baremes?.[cle];
+  return maj ? { ...base, tranches: maj.tranches, civile: !!maj.civile } : base;
+}
+
+/** Barème sans la modification manuelle : ce que « Revenir au barème officiel » rétablit. */
+export function baremeOfficiel(cle) {
+  const base = BAREMES[cle];
+  const off = baremesOfficiels?.baremes?.[cle];
+  return off ? { ...base, tranches: off.tranches, civile: !!off.civile } : base;
+}
+
 /**
  * Année de référence de la saison : celle du 31 août qui suit la date de la course (ou d'aujourd'hui),
  * ou l'année de la course elle-même en saison civile.
@@ -226,14 +256,14 @@ export function anneeSaison(dateIso, civile = false) {
 
 /** Libellé de la saison de la course, ex. « saison 2025-2026 » ou « saison 2026 ». */
 export function libelleSaison(c) {
-  const civile = !!BAREMES[c?.categories]?.civile;
+  const civile = !!bareme(c?.categories)?.civile;
   const ref = anneeSaison(c?.date, civile);
   return civile ? `saison ${ref}` : `saison ${ref - 1}-${ref}`;
 }
 
 /** Catégorie d'un participant pour la course, ou null si elle n'est pas calculable (saisie libre, année absente). */
 export function categorieAuto(c, annee, sexe) {
-  const b = BAREMES[c?.categories];
+  const b = bareme(c?.categories);
   if (!b?.tranches || !annee) return null;
   const age = anneeSaison(c.date, b.civile) - annee;
   const t = b.tranches.find(([de, a]) => age >= de && age <= a);
@@ -243,7 +273,7 @@ export function categorieAuto(c, annee, sexe) {
 
 /** Années de naissance de chaque catégorie pour la saison de la course (aide affichée dans la fiche course). */
 export function tableCategories(c) {
-  const b = BAREMES[c?.categories];
+  const b = bareme(c?.categories);
   if (!b?.tranches) return [];
   const ref = anneeSaison(c.date, b.civile);
   return b.tranches.map(([de, a, nom]) => ({ nom, de: ref - a, a: ref - de, premiere: de === 0, derniere: a >= 150 }));
@@ -262,6 +292,15 @@ export function appliquerCategories(courseId) {
     if (cat && cat !== i.categorie) { i.categorie = cat; n++; }
   });
   return n;
+}
+
+/**
+ * Après une mise à jour d'un barème : recalcule les courses qui l'utilisent.
+ * « seulementAVenir » laisse intactes les courses déjà parties ou terminées (mise à jour automatique).
+ */
+export function recalculerBareme(cle, seulementAVenir = false) {
+  const courses = state.courses.filter((c) => c.categories === cle && (!seulementAVenir || etatChrono(c).etat === "attente"));
+  return { courses: courses.length, modifiees: courses.reduce((n, c) => n + appliquerCategories(c.id), 0) };
 }
 
 export function nbInscrits(courseId) { return state.inscrits.filter((i) => i.courseId === courseId).length; }

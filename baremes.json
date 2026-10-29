@@ -1,0 +1,87 @@
+{
+  "version": "2026-10-29",
+  "description": "Barèmes officiels des catégories automatiques de Loopace Chrono (âge atteint dans l'année de fin de saison). Changer « version » à chaque mise à jour : tous les postes la reçoivent au lancement suivant.",
+  "baremes": {
+    "ffa": {
+      "civile": false,
+      "tranches": [
+        [0, 6, "Baby Athlé"],
+        [7, 9, "Éveil Athlé"],
+        [10, 11, "Poussins"],
+        [12, 13, "Benjamins"],
+        [14, 15, "Minimes"],
+        [16, 17, "Cadets"],
+        [18, 19, "Juniors"],
+        [20, 22, "Espoirs"],
+        [23, 34, "Seniors"],
+        [35, 39, "Masters M0"],
+        [40, 44, "Masters M1"],
+        [45, 49, "Masters M2"],
+        [50, 54, "Masters M3"],
+        [55, 59, "Masters M4"],
+        [60, 64, "Masters M5"],
+        [65, 69, "Masters M6"],
+        [70, 74, "Masters M7"],
+        [75, 79, "Masters M8"],
+        [80, 84, "Masters M9"],
+        [85, 150, "Masters M10"]
+      ]
+    },
+    "fftri": {
+      "civile": true,
+      "tranches": [
+        [0, 7, "Mini-poussins"],
+        [8, 9, "Poussins"],
+        [10, 11, "Pupilles"],
+        [12, 13, "Benjamins"],
+        [14, 15, "Minimes"],
+        [16, 17, "Cadets"],
+        [18, 19, "Juniors"],
+        [20, 24, "Seniors S1"],
+        [25, 29, "Seniors S2"],
+        [30, 34, "Seniors S3"],
+        [35, 39, "Seniors S4"],
+        [40, 44, "Masters M1"],
+        [45, 49, "Masters M2"],
+        [50, 54, "Masters M3"],
+        [55, 59, "Masters M4"],
+        [60, 64, "Masters M5"],
+        [65, 69, "Masters M6"],
+        [70, 74, "Masters M7"],
+        [75, 79, "Masters M8"],
+        [80, 84, "Masters M9"],
+        [85, 150, "Masters M10"]
+      ]
+    },
+    "unss": {
+      "civile": false,
+      "tranches": [
+        [0, 13, "Benjamins"],
+        [14, 15, "Minimes"],
+        [16, 17, "Cadets"],
+        [18, 19, "Juniors"],
+        [20, 150, "Seniors"]
+      ]
+    },
+    "classes": {
+      "civile": false,
+      "tranches": [
+        [0, 4, "PS"],
+        [5, 5, "MS"],
+        [6, 6, "GS"],
+        [7, 7, "CP"],
+        [8, 8, "CE1"],
+        [9, 9, "CE2"],
+        [10, 10, "CM1"],
+        [11, 11, "CM2"],
+        [12, 12, "6e"],
+        [13, 13, "5e"],
+        [14, 14, "4e"],
+        [15, 15, "3e"],
+        [16, 16, "2nde"],
+        [17, 17, "1re"],
+        [18, 18, "Terminale"]
+      ]
+    }
+  }
+}

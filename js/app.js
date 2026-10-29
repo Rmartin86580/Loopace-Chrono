@@ -229,6 +229,53 @@ $("#btnSupprimerCourse").addEventListener("click", async () => {
   toast("Course supprimée.");
 });
 
+// ── Dupliquer une course : autre course du même cross, ou édition suivante ───
+$("#btnDupliquerCourse").addEventListener("click", async () => {
+  const c = course(courseSel);
+  if (!c) return;
+  const f = $("#formDupliquer");
+  const nb = calc.nbInscrits(c.id);
+  f.nom.value = `${c.nom} (copie)`;
+  f.date.value = c.date || "";
+  f.heure.value = c.heure || "";
+  f.participants.checked = nb > 0;
+  f.participants.disabled = nb === 0;
+  f.dossards.checked = true;
+  f.bulletins.checked = false;
+  $("#dupliquerNb").textContent = `${nb} inscrit(s)`;
+  const options = () => $("#dupliquerOptions").setAttribute("aria-disabled", String(!f.participants.checked));
+  options();
+  f.participants.onchange = options;
+  f.nom.select();
+
+  if (await ouvrirDialogue($("#dlgDupliquer")) !== "ok" || !f.nom.value.trim()) return;
+  const copie = {
+    ...structuredClone(c), id: uid(), nom: f.nom.value.trim(), date: f.date.value || null, heure: f.heure.value || null,
+    chrono: { etat: "attente", depart: null, fin: null },
+  };
+  state.courses.push(copie);
+  let n = 0;
+  if (f.participants.checked) {
+    inscritsDe(c.id).forEach((i) => {
+      state.inscrits.push({
+        ...structuredClone(i), id: uid(), courseId: copie.id,
+        dossard: f.dossards.checked ? i.dossard : null,
+        bulletin: f.bulletins.checked ? i.bulletin : false,
+        depart: null, arrivee: null, statut: null,
+      });
+      n++;
+    });
+  }
+  // La date a pu changer de saison : catégories automatiques remises à jour (corrections manuelles gardées)
+  const recalculees = calc.appliquerCategories(copie.id);
+  courseSel = copie.id;
+  recherche = "";
+  $("#rechercheParticipant").value = "";
+  await store.sauver();
+  rendre();
+  toast(`Course « ${copie.nom} » créée` + (n ? ` avec ${n} participant(s)` : "") + "." + (recalculees ? ` ${recalculees} catégorie(s) recalculée(s).` : ""));
+});
+
 // ── Participants ─────────────────────────────────────────────
 function dossardPris(courseId, dossard, saufId) {
   return inscritsDe(courseId).some((i) => i.id !== saufId && i.dossard && dossard && String(i.dossard).trim() === dossard);
@@ -771,7 +818,123 @@ function rendreAdmin() {
       <span class="theme-card__body"><b>${esc(t.nom)}</b><small>${t.defaut ? "Thème par défaut (non modifiable)" : esc(t.titre || "Sans titre")}</small><small>${nb} course(s)</small></span>
     </button>`;
   }).join("");
+  if (!baremeModifie) chargerBareme();
 }
+
+// ── Mise à jour des catégories automatiques ──────────────────
+// On édite en années de naissance pour la saison en cours (c'est ce que donnent les règlements),
+// et on enregistre en âges, valables quelle que soit la saison de la course.
+let baremeCle = "ffa";
+let baremeLignes = [];   // [{ nom, de, a }] : années de naissance, « de » vide = et avant, « a » vide = et après
+let baremeModifie = false;
+
+const refBareme = () => calc.anneeSaison(null, $("#admTypeSaison").value === "civile");
+
+function chargerBareme() {
+  const sel = $("#admBareme");
+  sel.innerHTML = Object.entries(calc.BAREMES).filter(([, b]) => b.tranches)
+    .map(([cle, b]) => `<option value="${cle}"${cle === baremeCle ? " selected" : ""}>${b.nom.replace("Automatique — ", "")}</option>`).join("");
+  const b = calc.bareme(baremeCle);
+  $("#admTypeSaison").value = b.civile ? "civile" : "scolaire";
+  const ref = refBareme();
+  baremeLignes = b.tranches.map(([de, a, nom]) => ({ nom, de: a >= 150 ? "" : ref - a, a: de === 0 ? "" : ref - de }));
+  baremeModifie = false;
+  rendreBareme();
+}
+
+function rendreBareme() {
+  const ref = refBareme();
+  const civile = $("#admTypeSaison").value === "civile";
+  const perso = state.baremes?.[baremeCle];
+  $("#admSaisonRef").textContent = `Années de naissance pour la saison ${civile ? ref : `${ref - 1}-${ref}`}. Laissez « Nés de » vide pour « et avant », « à » vide pour « et après ».`;
+  const chip = $("#admEtatBareme");
+  const version = calc.versionBaremes();
+  chip.textContent = baremeModifie ? "Modifications non enregistrées"
+    : perso ? `Modifié à la main le ${new Date(perso.modifie).toLocaleDateString("fr-FR")}`
+    : version ? `Barème officiel à jour (version du ${fmtDate(version)})` : "Barème intégré";
+  chip.className = `chip${baremeModifie ? " chip--en-cours" : perso ? " chip--arretee" : ""}`;
+  $("#btnRetablirBareme").disabled = !perso && !baremeModifie;
+  $("#admErreurBareme").textContent = "";
+  $("#admTranches").innerHTML = baremeLignes.map((l, k) => `<tr data-k="${k}">
+      <td><input class="input" data-champ="nom" value="${esc(l.nom)}" maxlength="60" aria-label="Nom de la catégorie"></td>
+      <td><input class="input" type="number" data-champ="de" value="${l.de}" placeholder="et avant" aria-label="Née à partir de"></td>
+      <td><input class="input" type="number" data-champ="a" value="${l.a}" placeholder="et après" aria-label="Née jusqu'à"></td>
+      <td class="r"><button type="button" class="btn btn--ghost btn--sm btn--danger" data-suppr aria-label="Supprimer la catégorie"><svg class="ico"><use href="#i-trash"/></svg></button></td>
+    </tr>`).join("");
+}
+
+function marquerBaremeModifie() {
+  baremeModifie = true;
+  const chip = $("#admEtatBareme");
+  chip.textContent = "Modifications non enregistrées";
+  chip.className = "chip chip--en-cours";
+  $("#btnRetablirBareme").disabled = false;
+}
+
+$("#admBareme").addEventListener("change", async (e) => {
+  if (baremeModifie && !await confirmer("Changer de barème", "Les modifications non enregistrées de ce barème seront perdues.", { oui: "Continuer" })) {
+    e.target.value = baremeCle;
+    return;
+  }
+  baremeCle = e.target.value;
+  chargerBareme();
+});
+$("#admTypeSaison").addEventListener("change", () => { baremeModifie = true; rendreBareme(); });
+$("#admTranches").addEventListener("input", (e) => {
+  const champ = e.target.dataset.champ;
+  if (!champ) return;
+  const l = baremeLignes[+e.target.closest("tr").dataset.k];
+  l[champ] = champ === "nom" ? e.target.value : e.target.value === "" ? "" : parseInt(e.target.value, 10);
+  marquerBaremeModifie();
+});
+$("#admTranches").addEventListener("click", (e) => {
+  if (!e.target.closest("[data-suppr]")) return;
+  baremeLignes.splice(+e.target.closest("tr").dataset.k, 1);
+  baremeModifie = true;
+  rendreBareme();
+});
+$("#btnAjouterTranche").addEventListener("click", () => {
+  baremeLignes.push({ nom: "", de: "", a: "" });
+  baremeModifie = true;
+  rendreBareme();
+  $("#admTranches tr:last-child input").focus();
+});
+
+$("#btnEnregistrerBareme").addEventListener("click", async () => {
+  const ref = refBareme();
+  const erreur = (m) => { $("#admErreurBareme").textContent = m; };
+  const tranches = [];
+  for (const l of baremeLignes) {
+    const nom = String(l.nom).trim();
+    if (!nom) return erreur("Chaque catégorie doit avoir un nom.");
+    if (l.de === "" && l.a === "") return erreur(`« ${nom} » : indiquez au moins une année de naissance.`);
+    if ([l.de, l.a].some((v) => v !== "" && !(Number.isInteger(v) && v > 1900 && v <= ref))) return erreur(`« ${nom} » : année de naissance invalide.`);
+    if (l.de !== "" && l.a !== "" && l.de > l.a) return erreur(`« ${nom} » : l'année « de » doit être avant l'année « à ».`);
+    tranches.push([l.a === "" ? 0 : ref - l.a, l.de === "" ? 150 : ref - l.de, nom]);
+  }
+  if (!tranches.length) return erreur("Le barème doit contenir au moins une catégorie.");
+  tranches.sort((x, y) => x[0] - y[0]);
+  for (let k = 1; k < tranches.length; k++) {
+    if (tranches[k][0] <= tranches[k - 1][1]) return erreur(`« ${tranches[k - 1][2]} » et « ${tranches[k][2]} » se chevauchent : une même année ne peut être que dans une catégorie.`);
+  }
+  state.baremes ??= {};
+  state.baremes[baremeCle] = { tranches, civile: $("#admTypeSaison").value === "civile", modifie: Date.now() };
+  const r = calc.recalculerBareme(baremeCle);
+  await store.sauver();
+  chargerBareme();
+  toast(`Barème ${calc.BAREMES[baremeCle].nom.replace("Automatique — ", "")} enregistré.` +
+    (r.courses ? ` ${r.courses} course(s) recalculée(s), ${r.modifiees} catégorie(s) changée(s).` : ""));
+});
+
+$("#btnRetablirBareme").addEventListener("click", async () => {
+  if (!state.baremes?.[baremeCle]) { chargerBareme(); return; } // seulement des modifications non enregistrées
+  if (!await confirmer("Revenir au barème officiel", "Abandonner la modification manuelle et revenir au barème officiel, mis à jour automatiquement ? Les courses qui l'utilisent seront recalculées.", { oui: "Revenir au barème officiel" })) return;
+  delete state.baremes[baremeCle];
+  const r = calc.recalculerBareme(baremeCle);
+  await store.sauver();
+  chargerBareme();
+  toast("Barème officiel rétabli : il suivra de nouveau les mises à jour automatiques." + (r.modifiees ? ` ${r.modifiees} catégorie(s) changée(s).` : ""));
+});
 
 let logoEnCours = null;
 
@@ -891,7 +1054,8 @@ $("#fichierRestaurer").addEventListener("change", async (e) => {
   } catch { toast("Ce fichier n'est pas une sauvegarde Loopace Chrono.", "err"); return; }
   const ok = await confirmer("Restaurer une sauvegarde", `Remplacer toutes les données actuelles par la sauvegarde (${data.courses.length} course(s), ${data.inscrits.length} participant(s)) ?\n\nLes archives PDF ne sont pas touchées.`, { oui: "Restaurer", danger: true });
   if (!ok) return;
-  await store.remplacer({ version: 1, courses: data.courses, inscrits: data.inscrits, themes: data.themes || [] });
+  await store.remplacer({ version: 1, courses: data.courses, inscrits: data.inscrits, themes: data.themes || [], baremes: data.baremes || {} });
+  baremeModifie = false;
   courseSel = chronoSel = resultatsSel = null;
   rendre();
   toast("Sauvegarde restaurée.");
@@ -961,7 +1125,35 @@ try {
   throw err;
 }
 store.onExterne((quoi) => { if (quoi !== "selection") rendre(); });
+
+/**
+ * Mise à jour automatique des barèmes de catégories : le site publie baremes.json ; à chaque lancement
+ * (avec du réseau, sinon depuis le cache hors ligne) on le charge, et si sa version est nouvelle, les courses
+ * pas encore parties sont recalculées. Les barèmes modifiés à la main dans Administration restent prioritaires.
+ */
+async function majBaremes() {
+  let data;
+  try {
+    const r = await fetch("baremes.json", { cache: "no-cache" });
+    if (!r.ok) return;
+    data = await r.json();
+    if (!data?.version || typeof data.baremes !== "object") return;
+  } catch { return; } // hors ligne sans cache : barèmes intégrés
+  calc.definirBaremesOfficiels(data);
+  if (state.baremesVersion !== data.version) {
+    const premiere = state.baremesVersion == null;
+    let modifiees = 0;
+    Object.keys(data.baremes).filter((cle) => !state.baremes?.[cle])
+      .forEach((cle) => { modifiees += calc.recalculerBareme(cle, true).modifiees; });
+    state.baremesVersion = data.version;
+    await store.sauver();
+    if (!premiere || modifiees) toast(`Catégories mises à jour automatiquement (barèmes du ${fmtDate(data.version)})` + (modifiees ? ` : ${modifiees} catégorie(s) recalculée(s) dans les courses à venir.` : "."));
+  }
+  if (!baremeModifie) chargerBareme();
+  rendre();
+}
 window.addEventListener("hashchange", naviguer);
 naviguer();
+majBaremes();
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
