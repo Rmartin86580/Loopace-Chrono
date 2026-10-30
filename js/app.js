@@ -1,11 +1,11 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=6";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=6";
-import * as calc from "./calc.js?v=6";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=6";
-import * as excel from "./excel.js?v=6";
-import { genererPdf, nomFichier } from "./pdf.js?v=6";
+import * as store from "./store.js?v=14";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=14";
+import * as calc from "./calc.js?v=14";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=14";
+import * as excel from "./excel.js?v=14";
+import { genererPdf, nomFichier } from "./pdf.js?v=14";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -301,11 +301,15 @@ $("#btnSupprimerCourse").addEventListener("click", async () => {
 });
 
 // ── Dupliquer une course : autre course du même cross, ou édition suivante ───
-$("#btnDupliquerCourse").addEventListener("click", async () => {
+$("#btnDupliquerCourse").addEventListener("click", () => {
   const c = course(courseSel);
-  if (!c) return;
+  if (c) dupliquer(c, inscritsDe(c.id));
+});
+
+/** Copie une course et, au choix, ses participants : depuis la liste des courses ou depuis une archive. */
+async function dupliquer(c, inscrits) {
   const f = $("#formDupliquer");
-  const nb = calc.nbInscrits(c.id);
+  const nb = inscrits.length;
   f.nom.value = `${c.nom} (copie)`;
   f.date.value = c.date || "";
   f.heure.value = c.heure || "";
@@ -324,10 +328,11 @@ $("#btnDupliquerCourse").addEventListener("click", async () => {
     ...structuredClone(c), id: uid(), nom: f.nom.value.trim(), date: f.date.value || null, heure: f.heure.value || null,
     chrono: { etat: "attente", depart: null, fin: null },
   };
+  if (copie.themeId && !theme(copie.themeId)) copie.themeId = null; // thème supprimé depuis l'archivage
   state.courses.push(copie);
   let n = 0;
   if (f.participants.checked) {
-    inscritsDe(c.id).forEach((i) => {
+    inscrits.forEach((i) => {
       state.inscrits.push({
         ...structuredClone(i), id: uid(), courseId: copie.id,
         dossard: f.dossards.checked ? i.dossard : null,
@@ -342,9 +347,9 @@ $("#btnDupliquerCourse").addEventListener("click", async () => {
   courseSel = copie.id;
   reinitialiserFiltres();
   await store.sauver();
-  rendre();
+  if (vue !== "courses") location.hash = "#courses"; else rendre();
   toast(`Course « ${copie.nom} » créée` + (n ? ` avec ${n} participant(s)` : "") + "." + (recalculees ? ` ${recalculees} catégorie(s) recalculée(s).` : ""));
-});
+}
 
 // ── Participants ─────────────────────────────────────────────
 function dossardPris(courseId, dossard, saufId) {
@@ -929,15 +934,19 @@ $("#btnExcelResultats").addEventListener("click", () => {
 $("#btnArchiver").addEventListener("click", async () => {
   const c = course(resultatsSel);
   if (!c) return;
-  const ok = await confirmer("Archiver la course", `Archiver et supprimer « ${c.nom} » ?\n\nLe PDF des résultats est conservé dans l'onglet Archives, puis la course et ses participants sont supprimés définitivement.`, { oui: "Archiver", danger: true });
+  const ok = await confirmer("Archiver la course", `Archiver « ${c.nom} » ?\n\nLa course quitte la liste des courses. Ses résultats (PDF), ses participants et ses temps sont conservés dans l'onglet Archives, d'où elle pourra être dupliquée en nouvelle course.`, { oui: "Archiver" });
   if (!ok) return;
   try {
     const blob = pdfCourse(c);
-    await store.archives.ajouter({ id: uid(), nom: c.nom, fichier: nomFichier("", c.nom, "pdf"), date: Date.now(), taille: blob.size, blob });
+    // Copie complète de la course : pour revoir, refaire le PDF ou l'Excel, et dupliquer en nouvelle course
+    const donnees = { course: structuredClone(c), inscrits: structuredClone(inscritsDe(c.id)), theme: structuredClone(theme(c.themeId)) };
+    const id = uid();
+    await store.archives.ajouter({ id, nom: c.nom, fichier: nomFichier("", c.nom, "pdf"), date: Date.now(), taille: blob.size, blob, donnees });
+    archiveSel = id;
     await supprimerCourse(c.id);
     if (courseSel === c.id) courseSel = null;
     rendre();
-    toast("Course archivée : retrouvez le PDF dans l'onglet Archives.");
+    toast("Course archivée : retrouvez-la dans l'onglet Archives.");
   } catch (err) {
     toast(`Erreur lors de l'archivage : ${err.message}`, "err");
   }
@@ -948,35 +957,167 @@ $("#btnArchiver").addEventListener("click", async () => {
 // ══════════════════════════════════════════════════════════════
 const taille = (o) => (o < 1024 * 1024 ? `${Math.max(1, Math.round(o / 1024))} Ko` : `${(o / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`);
 let cacheArchives = [];
+let archiveSel = null;
+let urlPdfArchive = null;
+let rechercheArchives = "";
+const anneesOuvertes = new Set();
+
+/** Année d'une archive : celle de la date de course, sinon celle du jour d'archivage. */
+const anneeArchive = (a) => (a.donnees?.course?.date || new Date(a.date).toISOString()).slice(0, 4);
+
+/**
+ * Liste rangée par année (la plus récente en haut, repliable), puis par date de course.
+ * La recherche porte sur le nom, le lieu, le type et la date, et déplie tout.
+ */
+function rendreListeArchives() {
+  $("#nbArchives").textContent = cacheArchives.length ? String(cacheArchives.length) : "";
+  $("#nbArchives").hidden = !cacheArchives.length;
+  if (!cacheArchives.length) { $("#listeArchives").innerHTML = `<p class="muted-li">Aucune archive pour l'instant.</p>`; return; }
+
+  const q = normaliser(rechercheArchives);
+  const fiches = cacheArchives.map((a) => {
+    const c = a.donnees?.course;
+    const annee = anneeArchive(a);
+    const texte = normaliser([a.nom, c?.lieu, c?.type, c && fmtDate(c.date), annee].filter(Boolean).join(" "));
+    return { a, c, annee, dateCourse: c?.date || "", visible: !q || q.split(" ").every((mot) => texte.includes(mot)) };
+  }).filter((x) => x.visible);
+  if (!fiches.length) { $("#listeArchives").innerHTML = `<p class="muted-li">Aucune archive ne correspond à « ${esc(rechercheArchives)} ».</p>`; return; }
+
+  const annees = new Map();
+  fiches.sort((x, y) => y.annee.localeCompare(x.annee) || y.dateCourse.localeCompare(x.dateCourse) || y.a.date - x.a.date)
+    .forEach((x) => { if (!annees.has(x.annee)) annees.set(x.annee, []); annees.get(x.annee).push(x); });
+  // Par défaut : l'année la plus récente et celle de l'archive affichée sont ouvertes
+  if (!anneesOuvertes.size) {
+    anneesOuvertes.add([...annees.keys()][0]);
+    const sel = cacheArchives.find((a) => a.id === archiveSel);
+    if (sel) anneesOuvertes.add(anneeArchive(sel));
+  }
+  const marquer = (txt) => {
+    if (!q) return esc(txt);
+    const brut = String(txt);
+    const k = normaliser(brut).indexOf(q.split(" ")[0]);
+    return k < 0 ? esc(brut) : esc(brut.slice(0, k)) + `<mark>${esc(brut.slice(k, k + q.split(" ")[0].length))}</mark>` + esc(brut.slice(k + q.split(" ")[0].length));
+  };
+  $("#listeArchives").innerHTML = [...annees.entries()].map(([annee, liste]) => `
+    <details class="saison" data-annee="${annee}"${q || anneesOuvertes.has(annee) ? " open" : ""}>
+      <summary>${annee}<span>${liste.length}</span></summary>
+      <ul>${liste.map(({ a, c }) => {
+        const res = a.donnees ? calc.resultatsDe(c, a.donnees.inscrits) : null;
+        const meta = c ? [fmtDate(c.date), c.lieu].filter(Boolean).join(" · ") : "Ancienne archive (PDF seul)";
+        return `<li><button class="archive-item${a.id === archiveSel ? " is-on" : ""}" data-id="${a.id}">
+          <b>${marquer(a.nom)}</b><small>${esc(meta) || "&nbsp;"}</small><em>${res ? `${res.nbClasses} cl.` : "PDF"}</em>
+        </button></li>`;
+      }).join("")}</ul>
+    </details>`).join("");
+}
 
 async function rendreArchives() {
   cacheArchives = await store.archives.lister();
-  $("#tableArchives").innerHTML = cacheArchives.length ? cacheArchives.map((a) => `<tr data-id="${a.id}">
-      <td><b>${esc(a.nom)}</b><br><small class="muted">${esc(a.fichier)}</small></td>
-      <td>${new Date(a.date).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</td><td>${taille(a.taille)}</td>
-      <td class="r"><span class="actions actions--end">
-        <button class="btn btn--ghost btn--sm" data-act="ouvrir"><svg class="ico"><use href="#i-open"/></svg>Ouvrir</button>
-        <button class="btn btn--ghost btn--sm" data-act="dl"><svg class="ico"><use href="#i-download"/></svg>Télécharger</button>
-        <button class="btn btn--ghost btn--sm btn--danger" data-act="suppr" aria-label="Supprimer"><svg class="ico"><use href="#i-trash"/></svg></button>
-      </span></td></tr>`).join("")
-    : `<tr><td colspan="4" class="muted c">Aucune archive. « Archiver la course » dans l'onglet Résultats enregistre ici son PDF.</td></tr>`;
+  if (archiveSel && !cacheArchives.some((a) => a.id === archiveSel)) archiveSel = null;
+  // Par défaut : la course la plus récente (date de course, sinon d'archivage)
+  const dateRef = (a) => a.donnees?.course?.date || new Date(a.date).toISOString().slice(0, 10);
+  if (!archiveSel && cacheArchives.length) archiveSel = [...cacheArchives].sort((x, y) => dateRef(y).localeCompare(dateRef(x)))[0].id;
+
+  rendreListeArchives();
+
+  const a = cacheArchives.find((x) => x.id === archiveSel);
+  $("#videArchive").hidden = !!a;
+  $("#detailArchive").hidden = !a;
+  $("#videArchiveTexte").textContent = cacheArchives.length ? "Choisissez une archive pour revoir ses résultats."
+    : "« Archiver la course », dans l'onglet Résultats, range ici une course terminée avec ses résultats.";
+  if (!a) { afficherPdfArchive(null); return; }
+
+  const d = a.donnees;
+  const c = d?.course;
+  $("#titreArchive").textContent = a.nom;
+  $("#metaArchive").textContent = [c && fmtDate(c.date), c?.heure && `départ ${c.heure}`, c?.lieu, c?.distance && `${String(c.distance).replace(".", ",")} km`, c?.type,
+    `archivée le ${new Date(a.date).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}`, `PDF ${taille(a.taille)}`].filter(Boolean).join(" · ");
+  // Les anciennes archives n'ont que le PDF : pas de résumé, de duplication ni de nouvel export
+  ["#btnDupliquerArchive", "#btnExcelArchive"].forEach((b) => { $(b).hidden = !d; });
+  $("#barreThemeArchive").hidden = !d;
+
+  if (d) {
+    const res = calc.resultatsDe(c, d.inscrits);
+    const partants = d.inscrits.filter((i) => i.depart != null).length;
+    const nbDnf = res.individuel.filter((l) => l.dnf).length;
+    const podium = res.individuel.filter((l) => !l.dnf && !l.enCours).slice(0, 3);
+    const ecole = res.ecoles.find((g) => g.somme != null);
+    $("#resumeArchive").innerHTML = `
+      <div class="resume__tuile"><small>Partants</small><b>${partants}</b></div>
+      <div class="resume__tuile"><small>Classés</small><b>${res.nbClasses}</b></div>
+      <div class="resume__tuile"><small>DNF</small><b>${nbDnf}</b></div>
+      <div class="resume__tuile resume__tuile--large"><small>Podium</small>${podium.length ? `<ol class="resume__podium">${podium.map((l) =>
+        `<li><em>${l.position}</em><span>${esc(`${l.prenom} ${l.nom}`.trim())}${l.ecole ? ` <small class="muted">· ${esc(l.ecole)}</small>` : ""}</span><b>${l.temps}</b></li>`).join("")}</ol>` : `<p class="meta">Aucun classé.</p>`}</div>
+      <div class="resume__tuile resume__tuile--large"><small>Première école / club</small>${ecole ? `<p class="resume__ecole"><b>${esc(ecole.ecole)}</b><span class="muted">top 3 : ${ecole.sommeTxt}</span></p>` : `<p class="meta">Aucune école avec 3 classés.</p>`}</div>`;
+    const themes = [...state.themes].sort((x, y) => (y.defaut - x.defaut) || x.nom.localeCompare(y.nom, "fr"));
+    $("#themeArchive").innerHTML = `<option value="">${d.theme ? `Thème d'origine (« ${esc(d.theme.nom)} »)` : "Thème d'origine (par défaut)"}</option>` +
+      themes.map((t) => `<option value="${t.id}">${esc(t.nom)}</option>`).join("");
+  } else {
+    $("#resumeArchive").innerHTML = `<p class="meta">Ancienne archive : seul le PDF des résultats a été conservé (les données de la course n'étaient pas encore archivées).</p>`;
+  }
+  afficherPdfArchive(a);
 }
 
-$("#tableArchives").addEventListener("click", async (e) => {
-  const b = e.target.closest("button[data-act]");
-  if (!b) return;
-  const a = cacheArchives.find((x) => x.id === b.closest("tr").dataset.id);
-  if (!a) return;
-  if (b.dataset.act === "ouvrir") {
-    const url = URL.createObjectURL(a.blob);
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  } else if (b.dataset.act === "dl") {
-    telecharger(a.blob, a.fichier);
-  } else if (await confirmer("Supprimer l'archive", `Supprimer définitivement l'archive « ${a.nom} » ?`, { oui: "Supprimer", danger: true })) {
-    await store.archives.supprimer(a.id);
-    rendreArchives();
+/** PDF affiché dans la page (visionneuse du navigateur) au lieu d'un nouvel onglet. */
+function afficherPdfArchive(a) {
+  if (urlPdfArchive) URL.revokeObjectURL(urlPdfArchive);
+  urlPdfArchive = a ? URL.createObjectURL(a.blob) : null;
+  const cadre = $("#pdfArchive");
+  if (urlPdfArchive) cadre.src = `${urlPdfArchive}#view=FitH`; else cadre.removeAttribute("src");
+}
+
+const archiveCourante = () => cacheArchives.find((x) => x.id === archiveSel);
+
+$("#rechercheArchives").addEventListener("input", (e) => { rechercheArchives = e.target.value; rendreListeArchives(); });
+// Mémorise les années ouvertes ou repliées à la main (hors recherche, où tout est déplié)
+$("#listeArchives").addEventListener("toggle", (e) => {
+  const annee = e.target.dataset?.annee;
+  if (!annee || rechercheArchives) return;
+  if (e.target.open) anneesOuvertes.add(annee); else anneesOuvertes.delete(annee);
+}, true);
+
+$("#listeArchives").addEventListener("click", (e) => {
+  const b = e.target.closest(".archive-item");
+  if (!b || b.dataset.id === archiveSel) return;
+  archiveSel = b.dataset.id;
+  rendreArchives();
+});
+
+$("#btnPdfArchive").addEventListener("click", () => { const a = archiveCourante(); if (a) telecharger(a.blob, a.fichier); });
+
+$("#btnExcelArchive").addEventListener("click", () => {
+  const a = archiveCourante();
+  if (!a?.donnees) return;
+  try { excel.exporterResultats(nomFichier("Resultats_", a.nom, "xlsx"), calc.resultatsDe(a.donnees.course, a.donnees.inscrits)); }
+  catch (err) { toast(err.message, "err"); }
+});
+
+$("#btnRefairePdf").addEventListener("click", async () => {
+  const a = archiveCourante();
+  if (!a?.donnees) return;
+  const choix = $("#themeArchive").value;
+  const t = choix ? theme(choix) : a.donnees.theme;
+  try {
+    const blob = genererPdf({ course: a.donnees.course, theme: t, res: calc.resultatsDe(a.donnees.course, a.donnees.inscrits) });
+    await store.archives.ajouter({ ...a, blob, taille: blob.size });
+    await rendreArchives();
+    toast(`PDF refait${choix ? ` avec le thème « ${t.nom} »` : " avec le thème d'origine"}.`);
+  } catch (err) {
+    toast(`Erreur lors de la génération du PDF : ${err.message}`, "err");
   }
+});
+
+$("#btnDupliquerArchive").addEventListener("click", () => {
+  const a = archiveCourante();
+  if (a?.donnees) dupliquer(a.donnees.course, a.donnees.inscrits);
+});
+
+$("#btnSupprimerArchive").addEventListener("click", async () => {
+  const a = archiveCourante();
+  if (!a || !await confirmer("Supprimer l'archive", `Supprimer définitivement l'archive « ${a.nom} » (PDF et données) ?`, { oui: "Supprimer", danger: true })) return;
+  await store.archives.supprimer(a.id);
+  archiveSel = null;
+  rendreArchives();
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -1221,9 +1362,20 @@ $("#btnModele").addEventListener("click", () => {
   try { excel.telechargerModele(); } catch (err) { toast(err.message, "err"); }
 });
 
-$("#btnSauvegarde").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify({ application: "loopace-chrono", exporte: new Date().toISOString(), ...state }, null, 1)], { type: "application/json" });
+// La sauvegarde contient tout, archives comprises (leur PDF y est encodé en texte)
+const blobEnTexte = (blob) => new Promise((resolve, reject) => {
+  const lecteur = new FileReader();
+  lecteur.onload = () => resolve(lecteur.result);
+  lecteur.onerror = () => reject(lecteur.error);
+  lecteur.readAsDataURL(blob);
+});
+const texteEnBlob = (texte) => fetch(texte).then((r) => r.blob());
+
+$("#btnSauvegarde").addEventListener("click", async () => {
+  const archives = await Promise.all((await store.archives.lister()).map(async ({ blob, ...a }) => ({ ...a, pdf: await blobEnTexte(blob) })));
+  const blob = new Blob([JSON.stringify({ application: "loopace-chrono", exporte: new Date().toISOString(), ...state, archives }, null, 1)], { type: "application/json" });
   telecharger(blob, nomFichier("Sauvegarde_", "Loopace_Chrono", "json"));
+  toast(`Sauvegarde exportée : ${state.courses.length} course(s), ${archives.length} archive(s).`);
 });
 
 $("#btnRestaurer").addEventListener("click", () => $("#fichierRestaurer").click());
@@ -1236,9 +1388,13 @@ $("#fichierRestaurer").addEventListener("change", async (e) => {
     data = JSON.parse(await fichier.text());
     if (data.application !== "loopace-chrono" || !Array.isArray(data.courses) || !Array.isArray(data.inscrits)) throw new Error();
   } catch { toast("Ce fichier n'est pas une sauvegarde Loopace Chrono.", "err"); return; }
-  const ok = await confirmer("Restaurer une sauvegarde", `Remplacer toutes les données actuelles par la sauvegarde (${data.courses.length} course(s), ${data.inscrits.length} participant(s)) ?\n\nLes archives PDF ne sont pas touchées.`, { oui: "Restaurer", danger: true });
+  const archives = Array.isArray(data.archives) ? data.archives : [];
+  const ok = await confirmer("Restaurer une sauvegarde", `Remplacer les courses et réglages actuels par la sauvegarde (${data.courses.length} course(s), ${data.inscrits.length} participant(s), ${archives.length} archive(s)) ?\n\nLes archives de la sauvegarde sont ajoutées à celles déjà présentes.`, { oui: "Restaurer", danger: true });
   if (!ok) return;
   await store.remplacer({ version: 1, courses: data.courses, inscrits: data.inscrits, themes: data.themes || [], baremes: data.baremes || {} });
+  for (const { pdf, ...a } of archives) {
+    if (a.id && pdf) await store.archives.ajouter({ ...a, blob: await texteEnBlob(pdf) });
+  }
   baremeModifie = false;
   courseSel = chronoSel = resultatsSel = null;
   rendre();

@@ -1,7 +1,7 @@
 // Logique métier : départ, arrivées, arrêt, classements individuel et par école.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe } from "./store.js?v=6";
+import { state, course, inscritsDe } from "./store.js?v=14";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");
@@ -52,7 +52,11 @@ export function tempsCourse(c, now = Date.now()) {
 
 /** Répartition des inscrits d'une course pendant le chrono. */
 export function situation(courseId) {
-  const tous = inscritsDe(courseId);
+  return situationDe(inscritsDe(courseId));
+}
+
+/** Même répartition sur une liste d'inscrits quelconque (par exemple celle d'une archive). */
+export function situationDe(tous) {
   const partants = tous.filter((i) => i.depart != null);
   const arrives = partants.filter((i) => i.arrivee != null).sort((a, b) => a.arrivee - b.arrivee);
   const dnf = partants.filter((i) => i.arrivee == null && i.statut === "DNF").sort((a, b) => compareDossard(a.dossard, b.dossard));
@@ -142,7 +146,12 @@ function ligne(i, position) {
 
 /** Classement individuel (au temps), puis classement par école (somme des 3 meilleurs temps). */
 export function resultats(courseId) {
-  const { partants, dnf, enCours } = situation(courseId);
+  return resultatsDe(course(courseId), inscritsDe(courseId));
+}
+
+/** Mêmes résultats calculés sur une course et ses inscrits donnés (par exemple ceux d'une archive). */
+export function resultatsDe(c, inscrits) {
+  const { partants, dnf, enCours } = situationDe(inscrits);
   const arrives = partants.filter((i) => i.arrivee != null).sort((a, b) => duree(a) - duree(b));
 
   const lArrives = arrives.map((i, k) => ligne(i, k + 1));
@@ -167,7 +176,6 @@ export function resultats(courseId) {
     .sort((a, b) => (a.somme ?? Infinity) - (b.somme ?? Infinity) || (a.meilleur ?? Infinity) - (b.meilleur ?? Infinity))
     .map((g, k) => ({ ...g, rang: k + 1, sommeTxt: g.somme != null ? fmtDuree(g.somme) : "-" }));
 
-  const c = course(courseId);
   const morceaux = [`${lArrives.length} classé(s) / ${lDnf.length} DNF / ${partants.length} partant(s)`];
   if (c?.date) morceaux.push(fmtDate(c.date));
   let info = morceaux.join("  |  ");

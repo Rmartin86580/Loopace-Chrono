@@ -16,14 +16,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=14">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
   <!-- Excel (SheetJS) et PDF (jsPDF + AutoTable) : mis en cache par le service worker pour fonctionner hors ligne -->
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=6"></script>
+  <script type="module" src="js/app.js?v=14"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -212,13 +212,40 @@
 
     <!-- ===== ARCHIVES ===== -->
     <section class="view" id="view-archives" hidden>
-      <div class="card">
-        <div class="card__head"><h2>Archives PDF</h2><span class="meta">Conservées dans ce navigateur</span></div>
-        <div class="table-wrap">
-          <table class="table table--nowrap">
-            <thead><tr><th>Course</th><th>Archivée le</th><th>Taille</th><th class="r">Actions</th></tr></thead>
-            <tbody id="tableArchives"></tbody>
-          </table>
+      <div class="split">
+        <aside class="card">
+          <div class="card__head"><h2>Archives</h2><span class="chip" id="nbArchives"></span></div>
+          <input type="search" class="input archives__recherche" id="rechercheArchives" placeholder="Rechercher une course, un lieu, une année…">
+          <div class="archives" id="listeArchives"></div>
+          <p class="meta archives__note">Conservées dans ce navigateur et incluses dans la sauvegarde (Administration).</p>
+        </aside>
+
+        <div class="card">
+          <div class="empty" id="videArchive">
+            <img class="empty__logo media__dark" src="assets/chrono-logo-sombre.png" alt="">
+            <img class="empty__logo media__light" src="assets/chrono-logo-clair.png" alt="">
+            <p id="videArchiveTexte">Choisissez une archive pour revoir ses résultats.</p>
+          </div>
+          <div id="detailArchive" hidden>
+            <div class="card__head card__head--wrap">
+              <div>
+                <h2 id="titreArchive"></h2>
+                <p class="meta" id="metaArchive"></p>
+              </div>
+              <div class="actions">
+                <button class="btn btn--sm" id="btnDupliquerArchive"><svg class="ico"><use href="#i-copy"/></svg>Dupliquer en nouvelle course</button>
+                <button class="btn btn--ghost btn--sm" id="btnPdfArchive"><svg class="ico"><use href="#i-download"/></svg>PDF</button>
+                <button class="btn btn--ghost btn--sm" id="btnExcelArchive"><svg class="ico"><use href="#i-sheet"/></svg>Excel</button>
+                <button class="btn btn--ghost btn--sm btn--danger" id="btnSupprimerArchive" aria-label="Supprimer l'archive"><svg class="ico"><use href="#i-trash"/></svg></button>
+              </div>
+            </div>
+            <div class="resume" id="resumeArchive"></div>
+            <div class="archive-pdf__barre" id="barreThemeArchive">
+              <label class="field field--inline"><span>Thème du PDF</span><select class="input" id="themeArchive"></select></label>
+              <button class="btn btn--ghost btn--sm" id="btnRefairePdf"><svg class="ico"><use href="#i-reset"/></svg>Refaire le PDF</button>
+            </div>
+            <iframe class="archive-pdf" id="pdfArchive" title="PDF des résultats archivés"></iframe>
+          </div>
         </div>
       </div>
     </section>
@@ -264,7 +291,7 @@
         </div>
         <div class="card">
           <h2>Données</h2>
-          <p class="meta">Tout est enregistré dans ce navigateur, sur cet appareil. Exportez une sauvegarde pour changer d'ordinateur ou par précaution avant une course.</p>
+          <p class="meta">Tout est enregistré dans ce navigateur, sur cet appareil. Exportez une sauvegarde (courses, réglages et archives) pour changer d'ordinateur ou par précaution avant une course.</p>
           <div class="actions">
             <button class="btn btn--ghost btn--sm" id="btnSauvegarde"><svg class="ico"><use href="#i-download"/></svg>Exporter une sauvegarde</button>
             <button class="btn btn--ghost btn--sm" id="btnRestaurer"><svg class="ico"><use href="#i-upload"/></svg>Restaurer</button>
@@ -279,25 +306,51 @@
   <footer class="foot">© 2026 Romain MARTIN · Loopace Chrono · données stockées localement dans ce navigateur</footer>
 
   <!-- ===== DIALOGUES ===== -->
-  <dialog class="dlg" id="dlgCourse">
+  <dialog class="dlg dlg--course" id="dlgCourse">
     <form method="dialog" class="dlg__body" id="formCourse">
       <h3 id="dlgCourseTitre">Nouvelle course</h3>
-      <div class="form-grid">
-        <label class="field field--full"><span>Nom de la course *</span><input class="input" name="nom" required maxlength="200"></label>
-        <label class="field"><span>Date</span><input class="input" type="date" name="date"></label>
-        <label class="field"><span>Heure de départ</span><input class="input" type="time" name="heure"></label>
-        <label class="field"><span>Lieu</span><input class="input" name="lieu" maxlength="200"></label>
-        <label class="field"><span>Distance (km)</span><input class="input" name="distance" inputmode="decimal" placeholder="ex : 5 ou 2,4"></label>
-        <label class="field"><span>Type</span><input class="input" name="type" list="typesCourse" placeholder="Route, Cross, Trail…"></label>
-        <label class="field"><span>Dossards : premier numéro</span><input class="input" type="number" min="0" name="dossardsDe" placeholder="ex : 100"></label>
-        <label class="field"><span>Dernier numéro (facultatif)</span><input class="input" type="number" min="0" name="dossardsA" placeholder="ex : 199"></label>
-        <label class="field"><span>Thème PDF</span><select class="input" name="themeId" id="selectTheme"></select></label>
-        <label class="field field--full"><span>Catégories</span><select class="input" name="categories" id="selectBareme"></select></label>
-        <label class="check field--full" id="champCategoriesSexe"><input type="checkbox" name="categoriesSexe"> Séparer filles et garçons (ex. « Minimes F », « Minimes M »)</label>
-        <details class="cats field--full" id="aideCategories">
+      <div class="course-form">
+      <fieldset class="form-section">
+        <legend>La course</legend>
+        <div class="form-grid">
+          <label class="field field--full"><span>Nom *</span><input class="input" name="nom" required maxlength="200" placeholder="ex : Cross des écoles — Benjamins"></label>
+          <label class="field"><span>Date</span><input class="input" type="date" name="date"></label>
+          <label class="field"><span>Heure de départ</span><input class="input" type="time" name="heure"></label>
+          <label class="field field--full"><span>Lieu</span><input class="input" name="lieu" maxlength="200"></label>
+          <label class="field"><span>Type</span><input class="input" name="type" list="typesCourse" placeholder="Route, Cross, Trail…"></label>
+          <label class="field"><span>Distance (km)</span><input class="input" name="distance" inputmode="decimal" placeholder="ex : 5 ou 2,4"></label>
+        </div>
+      </fieldset>
+
+      <div class="course-form__reglages">
+      <fieldset class="form-section">
+        <legend>Dossards</legend>
+        <div class="field">
+          <span>Plage de numéros (facultatif)</span>
+          <div class="plage-champs">
+            <input class="input" type="number" min="0" name="dossardsDe" placeholder="100" aria-label="Premier numéro">
+            <span>à</span>
+            <input class="input" type="number" min="0" name="dossardsA" placeholder="199" aria-label="Dernier numéro">
+          </div>
+        </div>
+        <p class="meta">« Attribuer les dossards » numérote dans cette plage. Sans dernier numéro, pas de limite.</p>
+      </fieldset>
+
+      <fieldset class="form-section">
+        <legend>Catégories</legend>
+        <select class="input" name="categories" id="selectBareme" aria-label="Catégories"></select>
+        <label class="check" id="champCategoriesSexe"><input type="checkbox" name="categoriesSexe"> Séparer filles et garçons (ex. « Minimes F », « Minimes M »)</label>
+        <details class="cats" id="aideCategories">
           <summary></summary>
           <ul></ul>
         </details>
+      </fieldset>
+
+      <fieldset class="form-section">
+        <legend>Feuille de résultats</legend>
+        <label class="field"><span>Thème PDF</span><select class="input" name="themeId" id="selectTheme"></select></label>
+      </fieldset>
+      </div>
       </div>
       <datalist id="typesCourse"><option>Route</option><option>Cross</option><option>Trail</option><option>Piste</option><option>Relais</option></datalist>
       <div class="dlg__actions">

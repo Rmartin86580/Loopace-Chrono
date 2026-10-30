@@ -55,10 +55,14 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    « Annuler la dernière arrivée » corrige une erreur de saisie.
    Le chrono s'arrête seul quand tout le monde est arrivé ; « ARRÊT » classe DNF ceux qui sont encore en course.
    « Écran public » ouvre une fenêtre à placer sur le second écran (bouton Plein écran).
-3. **Résultats** : classement individuel et par école, export PDF ou Excel. « Archiver la course » range le
-   PDF dans **Archives** et supprime la course.
+3. **Résultats** : classement individuel et par école, export PDF ou Excel. « Archiver la course » range la
+   course dans **Archives** avec son PDF, ses participants et ses temps : on y revoit le résumé (partants,
+   podium, première école) et le PDF dans la page, on refait le PDF (avec un autre thème) ou l'Excel, et
+   « Dupliquer en nouvelle course » la remet en jeu pour une nouvelle édition.
+   La liste des archives est rangée par année (repliable) avec une recherche par nom, lieu ou année.
 
-Les données vivent dans ce navigateur, sur cet appareil : **Administration → Exporter une sauvegarde** avant
+Les données vivent dans ce navigateur, sur cet appareil : **Administration → Exporter une sauvegarde** (archives
+comprises) avant
 de changer d'ordinateur, et ouvrir l'application au moins une fois avec du réseau avant d'aller sur le terrain.
 Le chrono survit à un rechargement de la page (heure de départ enregistrée).
 
