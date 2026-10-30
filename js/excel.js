@@ -51,9 +51,11 @@ export async function lireParticipants(fichier) {
     prenom: col("prenom", "firstname"),
     sexe: col("sexe", "sex", "genre"),
     annee: col("né", "née", "nee", "ne(e)", "né(e)", "naissance", "annee", "born"),
-    ecole: col("ecole", "école / club", "club", "school", "equipe"),
+    ecole: col("ecole", "école / club", "etablissement", "school"),
+    club: col("club", "equipe", "association"),
     categorie: col("categorie", "cat", "classe"),
     telephone: col("telephone", "tel", "phone"),
+    licence: col("licence", "n° licence", "n licence", "no licence", "numero de licence", "num licence", "license"),
     bulletin: col("bulletin", "bulletinok", "bulletin ok", "inscrit"),
   };
   const manquantes = [["Nom", c.nom], ["Sexe", c.sexe], ["Né (année de naissance)", c.annee]].filter(([, k]) => k === -1).map(([n]) => `« ${n} »`);
@@ -67,7 +69,7 @@ export async function lireParticipants(fichier) {
       dossard: get(c.dossard), nom: get(c.nom), prenom: get(c.prenom),
       sexe: lireSexe(get(c.sexe)), sexeLu: get(c.sexe),
       annee: lireAnnee(brutes[k + 1]?.[c.annee]), anneeLue: get(c.annee),
-      ecole: get(c.ecole), categorie: get(c.categorie), telephone: get(c.telephone),
+      ecole: get(c.ecole), club: get(c.club), categorie: get(c.categorie), telephone: get(c.telephone), licence: get(c.licence),
       bulletin: ["1", "oui", "true", "yes", "x", "vrai"].includes(get(c.bulletin).toLowerCase()),
     };
   }).filter((l) => l.dossard || l.nom || l.prenom || l.sexeLu || l.anneeLue); // lignes entièrement vides ignorées
@@ -87,10 +89,10 @@ function ecrire(nomFichier, feuilles) {
 export function exporterParticipants(nomFichier, inscrits) {
   ecrire(nomFichier, [{
     nom: "Participants",
-    largeurs: [10, 20, 18, 6, 8, 26, 16, 16, 11],
+    largeurs: [10, 20, 18, 6, 8, 26, 26, 14, 16, 16, 11],
     lignes: [
-      ["Dossard", "Nom", "Prénom", "Sexe", "Né(e)", "École / Club", "Catégorie", "Téléphone", "Bulletin OK"],
-      ...inscrits.map((i) => [i.dossard || "", i.nom, i.prenom, i.sexe || "", i.annee || "", i.ecole || "", i.categorie || "", i.telephone || "", i.bulletin ? "Oui" : "Non"]),
+      ["Dossard", "Nom", "Prénom", "Sexe", "Né(e)", "École", "Club", "Licence", "Catégorie", "Téléphone", "Bulletin OK"],
+      ...inscrits.map((i) => [i.dossard || "", i.nom, i.prenom, i.sexe || "", i.annee || "", i.ecole || "", i.club || "", i.licence || "", i.categorie || "", i.telephone || "", i.bulletin ? "Oui" : "Non"]),
     ],
   }]);
 }
@@ -98,16 +100,21 @@ export function exporterParticipants(nomFichier, inscrits) {
 export function exporterResultats(nomFichier, res) {
   const feuilles = [{
     nom: "Classement",
-    largeurs: [6, 10, 20, 18, 26, 14, 6, 8, 12],
+    largeurs: [6, 10, 20, 18, 26, 26, 14, 14, 6, 8, 12],
     lignes: [
-      ["#", "Dossard", "Nom", "Prénom", "École / Club", "Catégorie", "Sexe", "Né(e)", "Temps"],
-      ...res.individuel.map((l) => [l.position, l.dossard, l.nom, l.prenom, l.ecole, l.categorie, l.sexe, l.naissance, l.enCours ? "En course" : l.temps]),
+      ["#", "Dossard", "Nom", "Prénom", "École", "Club", "Licence", "Catégorie", "Sexe", "Né(e)", "Temps"],
+      ...res.individuel.map((l) => [l.position, l.dossard, l.nom, l.prenom, l.ecole, l.club, l.licence, l.categorie, l.sexe, l.naissance, l.enCours ? "En course" : l.temps]),
     ],
   }];
   if (res.ecoles.length) feuilles.push({
     nom: "Écoles",
     largeurs: [6, 30, 10, 8, 14],
-    lignes: [["#", "École / Club", "Classés", "DNF", "Somme top 3"], ...res.ecoles.map((g) => [g.rang, g.ecole, g.nbFinishers, g.nbDnf, g.sommeTxt])],
+    lignes: [["#", "École", "Inscrits", "Classés", "DNF", `Total (${res.regle.txt})`], ...res.ecoles.map((g) => [g.rang, g.ecole, g.nbInscrits, g.nbFinishers, g.nbDnf, g.scoreTxt])],
+  });
+  if (res.clubs.length) feuilles.push({
+    nom: "Clubs",
+    largeurs: [6, 30, 10, 8, 14],
+    lignes: [["#", "Club", "Inscrits", "Classés", "DNF", `Total (${res.regle.txt})`], ...res.clubs.map((g) => [g.rang, g.ecole, g.nbInscrits, g.nbFinishers, g.nbDnf, g.scoreTxt])],
   });
   ecrire(nomFichier, feuilles);
 }
@@ -117,12 +124,12 @@ export function telechargerModele() {
     {
       nom: "Import",
       // Colonnes obligatoires en premier : Nom, Sexe, Né
-      largeurs: [20, 18, 8, 8, 10, 25, 16, 16, 12],
+      largeurs: [20, 18, 8, 8, 10, 25, 25, 14, 16, 16, 12],
       lignes: [
-        ["Nom ★", "Prenom", "Sexe ★", "Né ★", "Dossard", "Ecole", "Categorie", "Telephone", "Bulletin"],
-        ["Dupont", "Marie", "F", 2010, "", "Lycée Jean Moulin", "", "0612345678", "oui"],
-        ["Martin", "Thomas", "M", 2009, "", "Collège Vauban", "", "", ""],
-        ["Bernard", "Léa", "F", 2011, "12", "Lycée Jean Moulin", "", "", "1"],
+        ["Nom ★", "Prenom", "Sexe ★", "Né ★", "Dossard", "Ecole", "Club", "Licence", "Categorie", "Telephone", "Bulletin"],
+        ["Dupont", "Marie", "F", 2010, "", "Lycée Jean Moulin", "", "", "", "0612345678", "oui"],
+        ["Martin", "Thomas", "M", 2009, "", "Collège Vauban", "", "", "", "", ""],
+        ["Bernard", "Léa", "F", 2011, "12", "Lycée Jean Moulin", "Lencloitre JC 86", "2849415", "", "", "1"],
       ],
     },
     {
@@ -141,7 +148,9 @@ export function telechargerModele() {
         ["Sexe ★", "F ou M (obligatoire) ; Fille, Femme, Garçon, Homme, H sont aussi acceptés"],
         ["Né ★", "Année de naissance (obligatoire), ex : 2010 ; une date complète (12/03/2010) convient aussi"],
         ["Dossard", "Numéro de dossard, unique dans la course ; vide = à attribuer plus tard"],
-        ["Ecole", "École ou club d'appartenance"],
+        ["Ecole", "École ou établissement (classement par école)"],
+        ["Club", "Club ou association (classement par club)"],
+        ["Licence", "Numéro de licence (optionnel), affichable dans une colonne du PDF"],
         ["Categorie", "Catégorie, seulement si la course est en saisie libre (sinon calculée d'après l'année)"],
         ["Telephone", "Numéro de téléphone (optionnel)"],
         ["Bulletin", "Bulletin d'inscription complet ? Valeurs acceptées : oui / 1 / true / x"],

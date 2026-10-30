@@ -1,11 +1,11 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=14";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=14";
-import * as calc from "./calc.js?v=14";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=14";
-import * as excel from "./excel.js?v=14";
-import { genererPdf, nomFichier } from "./pdf.js?v=14";
+import * as store from "./store.js?v=18";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=18";
+import * as calc from "./calc.js?v=18";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=18";
+import * as excel from "./excel.js?v=18";
+import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=18";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -98,7 +98,7 @@ function rendre() {
 let courseSel = null;
 let recherche = "";
 // Filtres et tri de la liste des participants (remis à zéro quand on change de course)
-let filtres = { statut: "", ecole: "", categorie: "" };
+let filtres = { statut: "", ecole: "", club: "", categorie: "" };
 let tri = null; // { col, sens } ; null = école, nom, prénom
 const SANS = "\u0000sans"; // valeur des options « (sans école) », « (sans catégorie) »
 
@@ -128,7 +128,7 @@ function optionsFiltre(select, valeurs, tous, sans, choisi) {
 function reinitialiserFiltres() {
   recherche = "";
   $("#rechercheParticipant").value = "";
-  filtres = { statut: "", ecole: "", categorie: "" };
+  filtres = { statut: "", ecole: "", club: "", categorie: "" };
   tri = null;
 }
 
@@ -152,20 +152,27 @@ function rendreCourses() {
 
   $("#titreCourse").textContent = c.nom;
   const th = theme(c.themeId);
-  $("#metaCourse").textContent = [fmtDate(c.date), c.heure && `départ ${c.heure}`, c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km`, c.type, c.plageDossards && `dossards ${plageTexte(c.plageDossards)}`, th && `thème « ${th.nom} »`].filter(Boolean).join(" · ");
+  $("#metaCourse").textContent = [fmtDate(c.date), c.heure && `départ ${c.heure}`, c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km`, c.type, c.plageDossards && `dossards ${plageTexte(c.plageDossards)}`, th && `modèle « ${th.nom} »`].filter(Boolean).join(" · ");
 
   const tous = inscritsDe(c.id).sort(comparerParticipants);
+  const eq = calc.equipesDe(c, tous);
+  marquerEquipes($("#enteteParticipants").closest("table"), eq);
+  if (!eq.ecole) filtres.ecole = "";
+  if (!eq.club) filtres.club = "";
 
   $("#filtreStatut").value = filtres.statut;
   $("#filtreStatut").classList.toggle("is-actif", !!filtres.statut);
-  optionsFiltre($("#filtreEcole"), tous.map((i) => i.ecole), "Toutes les écoles / clubs", "(sans école)", filtres.ecole);
+  optionsFiltre($("#filtreEcole"), tous.map((i) => i.ecole), "Toutes les écoles", "(sans école)", filtres.ecole);
+  optionsFiltre($("#filtreClub"), tous.map((i) => i.club), "Tous les clubs", "(sans club)", filtres.club);
+  $("#filtreEcole").hidden = !eq.ecole;
+  $("#filtreClub").hidden = !eq.club || (!tous.some((i) => i.club) && !filtres.club); // inutile tant que personne n'a de club
   optionsFiltre($("#filtreCategorie"), tous.map((i) => i.categorie), "Toutes les catégories", "(sans catégorie)", filtres.categorie);
   const egal = (val, choisi) => !choisi || (choisi === SANS ? !val : val === choisi);
   const q = recherche.trim().toLowerCase();
   const vus = tous.filter((i) =>
-    (!filtres.statut || FILTRES_STATUT[filtres.statut](i)) && egal(i.ecole, filtres.ecole) && egal(i.categorie, filtres.categorie) &&
-    (!q || [i.dossard, i.nom, i.prenom, i.ecole, i.categorie].some((v) => String(v ?? "").toLowerCase().includes(q))));
-  const filtre = q || filtres.statut || filtres.ecole || filtres.categorie;
+    (!filtres.statut || FILTRES_STATUT[filtres.statut](i)) && egal(i.ecole, filtres.ecole) && egal(i.club, filtres.club) && egal(i.categorie, filtres.categorie) &&
+    (!q || [i.dossard, i.nom, i.prenom, i.ecole, i.club, i.licence, i.categorie].some((v) => String(v ?? "").toLowerCase().includes(q))));
+  const filtre = q || filtres.statut || filtres.ecole || filtres.club || filtres.categorie;
   $("#btnEffacerFiltres").hidden = !filtre;
   $$("#enteteParticipants th").forEach((th) => {
     if (tri && th.dataset.tri === tri.col) th.setAttribute("aria-sort", tri.sens === "desc" ? "descending" : "ascending");
@@ -176,9 +183,9 @@ function rendreCourses() {
   $("#statsParticipants").textContent = `${tous.length} inscrit(s) · ${nbBulletins} bulletin(s) complet(s)` + (filtre ? ` · ${vus.length} affiché(s)` : "");
   $("#tableParticipants").innerHTML = vus.length ? vus.map((i) => `<tr data-id="${i.id}">
       <td><b>${esc(i.dossard) || '<span class="muted">—</span>'}</b></td><td>${esc(i.nom)}</td><td>${esc(i.prenom)}</td><td>${esc(i.sexe)}</td>
-      <td>${esc(i.annee)}</td><td>${esc(i.ecole)}</td><td>${esc(i.categorie)}</td><td>${esc(i.telephone)}</td>
+      <td>${esc(i.annee)}</td><td class="col-ecole">${esc(i.ecole)}</td><td class="col-club">${esc(i.club)}</td><td>${esc(i.licence)}</td><td>${esc(i.categorie)}</td><td>${esc(i.telephone)}</td>
       <td class="c"><input type="checkbox" class="toggle-bulletin" aria-label="Bulletin complet" ${i.bulletin ? "checked" : ""}></td></tr>`).join("")
-    : `<tr><td colspan="9" class="muted c">${tous.length ? "Aucun participant ne correspond à ces filtres." : "Aucun participant : ajoutez-en ou importez un fichier Excel."}</td></tr>`;
+    : `<tr><td colspan="11" class="muted c">${tous.length ? "Aucun participant ne correspond à ces filtres." : "Aucun participant : ajoutez-en ou importez un fichier Excel."}</td></tr>`;
 
   const vide = tous.length === 0;
   $("#btnDossards").disabled = vide;
@@ -195,6 +202,7 @@ $("#listeCourses").addEventListener("click", (e) => {
 $("#rechercheParticipant").addEventListener("input", (e) => { recherche = e.target.value; rendreCourses(); });
 $("#filtreStatut").addEventListener("change", (e) => { filtres.statut = e.target.value; rendreCourses(); });
 $("#filtreEcole").addEventListener("change", (e) => { filtres.ecole = e.target.value; rendreCourses(); });
+$("#filtreClub").addEventListener("change", (e) => { filtres.club = e.target.value; rendreCourses(); });
 $("#filtreCategorie").addEventListener("change", (e) => { filtres.categorie = e.target.value; rendreCourses(); });
 $("#btnEffacerFiltres").addEventListener("click", () => { const t = tri; reinitialiserFiltres(); tri = t; rendreCourses(); });
 // Clic sur une colonne : tri croissant, puis décroissant, puis retour à l'ordre par école
@@ -236,6 +244,7 @@ async function editerCourse(c) {
   const bareme = c ? c.categories || "libre" : "ffa";
   $("#selectBareme").innerHTML = Object.entries(calc.BAREMES).map(([cle, b]) => `<option value="${cle}"${cle === bareme ? " selected" : ""}>${b.nom}</option>`).join("");
   f.categoriesSexe.checked = !!c?.categoriesSexe;
+  f.equipes.value = c ? calc.equipesDe(c, inscritsDe(c.id)).choix : "ecole";
   aideCategories();
 
   if (await ouvrirDialogue($("#dlgCourse")) !== "ok") return;
@@ -246,7 +255,7 @@ async function editerCourse(c) {
     nom, date: f.date.value || null, heure: f.heure.value || null, lieu: f.lieu.value.trim(),
     distance: Number.isFinite(distance) ? distance : null, type: f.type.value.trim(), themeId: f.themeId.value || null,
     plageDossards: lirePlage(f.dossardsDe.value, f.dossardsA.value),
-    categories: f.categories.value, categoriesSexe: f.categoriesSexe.checked,
+    categories: f.categories.value, categoriesSexe: f.categoriesSexe.checked, equipes: f.equipes.value,
   };
   let cible = c;
   if (c) Object.assign(c, valeurs);
@@ -359,6 +368,7 @@ function dossardPris(courseId, dossard, saufId) {
 function remplirListes(courseId) {
   const uniques = (cle) => [...new Set(state.inscrits.map((i) => i[cle]).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
   $("#listeEcoles").innerHTML = uniques("ecole").map((v) => `<option value="${esc(v)}">`).join("");
+  $("#listeClubs").innerHTML = uniques("club").map((v) => `<option value="${esc(v)}">`).join("");
   $("#listeCategories").innerHTML = uniques("categorie").map((v) => `<option value="${esc(v)}">`).join("");
 }
 
@@ -366,6 +376,7 @@ async function editerParticipant(i) {
   const c = course(courseSel);
   if (!c) return;
   const f = $("#formParticipant");
+  marquerEquipes(f, calc.equipesDe(c, inscritsDe(c.id)));
   $("#dlgParticipantTitre").textContent = i ? `${nomComplet(i)}` : "Nouveau participant";
   $("#btnDesinscrire").hidden = !i;
   $("#erreurParticipant").textContent = "";
@@ -376,8 +387,10 @@ async function editerParticipant(i) {
   f.annee.value = i?.annee || "";
   f.sexe.value = i?.sexe === "M" ? "M" : "F";
   f.ecole.value = i?.ecole || "";
+  f.club.value = i?.club || "";
   f.categorie.value = i?.categorie || "";
   f.telephone.value = i?.telephone || "";
+  f.licence.value = i?.licence || "";
   f.bulletin.checked = !!i?.bulletin;
   f.categorie.dataset.manuel = i?.categorieManuelle ? "1" : "";
   categorieParticipant();
@@ -402,7 +415,7 @@ async function editerParticipant(i) {
     const annee = parseInt(f.annee.value, 10);
     const valeurs = {
       dossard, nom: f.nom.value.trim(), prenom: f.prenom.value.trim(), annee: Number.isFinite(annee) ? annee : null,
-      sexe: f.sexe.value, ecole: f.ecole.value.trim(), categorie: f.categorie.value.trim(), telephone: f.telephone.value.trim(), bulletin: f.bulletin.checked,
+      sexe: f.sexe.value, ecole: f.ecole.value.trim(), club: f.club.value.trim(), categorie: f.categorie.value.trim(), telephone: f.telephone.value.trim(), licence: f.licence.value.trim(), bulletin: f.bulletin.checked,
     };
     // Champ vidé : on reprend la catégorie calculée ; valeur différente du calcul : correction manuelle conservée
     const auto = calc.categorieAuto(c, valeurs.annee, valeurs.sexe);
@@ -460,7 +473,7 @@ $("#btnExcel").addEventListener("click", () => {
   const nb = calc.nbInscrits(c.id);
   $("#dlgExcelTitre").textContent = `Excel — ${c.nom}`;
   $("#excelExportTexte").textContent = nb
-    ? `Télécharge la liste des ${nb} participant(s) de la course : dossard, nom, prénom, sexe, année, école, catégorie, téléphone, bulletin.`
+    ? `Télécharge la liste des ${nb} participant(s) de la course : dossard, nom, prénom, sexe, année, école, club, licence, catégorie, téléphone, bulletin.`
     : "Aucun participant à exporter pour l'instant.";
   $("#btnExporterParticipants").disabled = !nb;
   $("#dlgExcel").showModal();
@@ -511,7 +524,9 @@ $("#fichierImport").addEventListener("change", async (e) => {
       existant.sexe = l.sexe;
       existant.annee = l.annee;
       if (l.ecole) existant.ecole = l.ecole;
+      if (l.club) existant.club = l.club;
       if (l.telephone) existant.telephone = l.telephone;
+      if (l.licence) existant.licence = l.licence;
       if (l.bulletin) existant.bulletin = true;
       if (dossard && dossard !== String(existant.dossard ?? "")) {
         if (existant.dossard) erreurs.push(`${l.prenom} ${l.nom} : garde son dossard ${existant.dossard} (le fichier indique ${dossard})`);
@@ -529,7 +544,7 @@ $("#fichierImport").addEventListener("change", async (e) => {
     }
     state.inscrits.push({
       id: uid(), courseId: c.id, dossard, nom: l.nom, prenom: l.prenom, sexe: l.sexe, annee: l.annee,
-      ecole: l.ecole, categorie: calc.categorieAuto(c, l.annee, l.sexe) || l.categorie, telephone: l.telephone, bulletin: l.bulletin,
+      ecole: l.ecole, club: l.club, categorie: calc.categorieAuto(c, l.annee, l.sexe) || l.categorie, telephone: l.telephone, licence: l.licence, bulletin: l.bulletin,
       depart: null, arrivee: null, statut: null,
     });
     importes++;
@@ -652,6 +667,7 @@ function rendreChrono() {
   if (chronoSel && !course(chronoSel)) choisirCourseChrono(null);
 
   const c = course(chronoSel);
+  const eqChrono = calc.equipesDe(c, c ? inscritsDe(c.id) : []);
   optionsCourses($("#chronoCourse"), chronoSel);
   const etat = calc.etatChrono(c).etat;
   $("#chronoCourse").disabled = !!enMarche;
@@ -683,7 +699,7 @@ function rendreChrono() {
   const lignes = s ? [...s.arrives.map((i, k) => ({ i, pos: k + 1 })), ...s.dnf.map((i) => ({ i, pos: null }))] : [];
   $("#nbClasses").textContent = s ? `${s.arrives.length} arrivé(s)${s.dnf.length ? ` · ${s.dnf.length} DNF` : ""}` : "";
   $("#tableArrivees").innerHTML = lignes.length ? lignes.map(({ i, pos }) => `<tr class="${pos == null ? "is-dnf" : pos <= 3 ? `podium podium--${pos}` : ""}">
-      <td><b>${pos ?? "DNF"}</b></td><td><b>${esc(i.dossard)}</b></td><td>${esc(nomComplet(i))}</td><td>${esc(i.ecole)}</td>
+      <td><b>${pos ?? "DNF"}</b></td><td><b>${esc(i.dossard)}</b></td><td>${esc(nomComplet(i))}</td><td>${esc(calc.equipeAffichee(i, eqChrono))}</td>
       <td>${fmtHeure(i.arrivee) || "-"}</td><td class="r mono"><b>${pos == null ? "DNF" : fmtDuree(calc.duree(i))}</b></td></tr>`).join("")
     : `<tr><td colspan="6" class="muted c">Les arrivées s'afficheront ici.</td></tr>`;
   const sc = $("#scrollClassement");
@@ -691,7 +707,7 @@ function rendreChrono() {
 
   const attente = etat === "attente" && s ? s.avecBulletin.sort((a, b) => compareDossard(a.dossard, b.dossard)) : s?.enCours || [];
   $("#nbEnCours").textContent = s ? String(attente.length) : "";
-  $("#listeEnCours").innerHTML = attente.map((i) => `<li><b>${esc(i.dossard) || "—"}</b><span>${esc(nomComplet(i))}</span><em>${esc(i.ecole)}</em></li>`).join("")
+  $("#listeEnCours").innerHTML = attente.map((i) => `<li><b>${esc(i.dossard) || "—"}</b><span>${esc(nomComplet(i))}</span><em>${esc(calc.equipeAffichee(i, eqChrono))}</em></li>`).join("")
     || `<li class="muted-li">${etat === "arretee" ? "Plus personne en course." : "Personne."}</li>`;
 
   tic();
@@ -886,28 +902,56 @@ function rendreResultats() {
   ["#btnPdf", "#btnExcelResultats", "#btnArchiver"].forEach((s) => { $(s).disabled = vide; });
   $("#resultatsInfo").textContent = c ? (vide ? "Aucun temps pour cette course : donnez le départ dans l'onglet Chronomètre." : res.info) : "Choisissez une course.";
 
+  const eq = res?.equipes || { ecole: true, club: true };
+  ["#segIndividuel", "#segEcoles", "#segClubs"].forEach((s) => marquerEquipes($(s), eq));
+  $('.seg__btn[data-seg="ecoles"]').hidden = !eq.ecole;
+  $('.seg__btn[data-seg="clubs"]').hidden = !eq.club;
+  if ((segment === "ecoles" && !eq.ecole) || (segment === "clubs" && !eq.club)) segment = "individuel";
   $$(".seg__btn[data-seg]").forEach((b) => b.classList.toggle("is-on", b.dataset.seg === segment));
   $("#segIndividuel").hidden = segment !== "individuel";
   $("#segEcoles").hidden = segment !== "ecoles";
+  $("#segClubs").hidden = segment !== "clubs";
 
   $("#tableResultats").innerHTML = !vide ? res.individuel.map((l) => `<tr class="${l.dnf ? "is-dnf" : l.enCours ? "is-wait" : +l.position <= 3 ? `podium podium--${l.position}` : ""}">
-      <td><b>${l.position}</b></td><td><b>${esc(l.dossard)}</b></td><td>${esc(l.nom)}</td><td>${esc(l.prenom)}</td><td>${esc(l.ecole)}</td>
+      <td><b>${l.position}</b></td><td><b>${esc(l.dossard)}</b></td><td>${esc(l.nom)}</td><td>${esc(l.prenom)}</td><td class="col-ecole">${esc(l.ecole)}</td><td class="col-club">${esc(l.club)}</td>
       <td>${esc(l.categorie)}</td><td>${esc(l.sexe)}</td><td>${esc(l.naissance)}</td><td class="r mono"><b>${l.enCours ? "En course" : l.temps}</b></td></tr>`).join("")
-    : `<tr><td colspan="9" class="muted c">Pas encore de résultats.</td></tr>`;
+    : `<tr><td colspan="10" class="muted c">Pas encore de résultats.</td></tr>`;
 
-  $("#segEcoles").innerHTML = res?.ecoles.length ? res.ecoles.map((g) => `<article class="ecole">
+  $("#segEcoles").innerHTML = blocsEquipes(res, "ecoles", "#École", "rangEcole", "club")
+    || `<p class="muted">Le classement par école apparaît dès les premières arrivées. Règle du modèle PDF de la course : ${res ? res.regle.txt : "3 meilleurs temps"} de chaque école.</p>`;
+  $("#segClubs").innerHTML = blocsEquipes(res, "clubs", "#Club", "rangClub", "ecole")
+    || `<p class="muted">Le classement par club apparaît quand des arrivants ont un club renseigné (fiche participant ou colonne « Club » de l'import). Même règle que les écoles : ${res ? res.regle.txt : "3 meilleurs temps"}.</p>`;
+}
+
+/** Masque les colonnes et champs École ou Club que la course n'utilise pas (réglage de la fiche course). */
+function marquerEquipes(el, eq) {
+  el.classList.toggle("sans-ecole", !eq.ecole);
+  el.classList.toggle("sans-club", !eq.club);
+}
+
+/** Blocs d'un classement par équipe (écoles ou clubs) ; « autre » : la colonne de l'autre type d'équipe. */
+function blocsEquipes(res, cle, rangTitre, champRang, autre) {
+  const titreAutre = autre === "club" ? "Club" : "École";
+  const colAutre = `col-${autre}`;
+  return res?.[cle].length ? res[cle].map((g) => `<article class="ecole">
       <header class="ecole__head">
         <span class="ecole__rang${g.rang <= 3 ? ` ecole__rang--${g.rang}` : ""}">${g.rang}</span>
         <h3>${esc(g.ecole)}</h3>
-        <span class="meta">${g.nbFinishers} classé(s)${g.nbDnf ? ` · ${g.nbDnf} DNF` : ""} · top 3 : <b>${g.sommeTxt}</b></span>
+        <span class="meta">${effectifEquipe(g).join(" · ")}${g.score != null ? ` · ${res.regle.txt} : <b>${g.scoreTxt}</b>` : ""}</span>
       </header>
       <div class="table-wrap"><table class="table table--compact table--nowrap">
-        <thead><tr><th>#École</th><th>#Gén.</th><th>Dossard</th><th>Nom</th><th>Prénom</th><th>Catégorie</th><th>Sexe</th><th class="r">Temps</th></tr></thead>
-        <tbody>${g.participants.map((l) => `<tr class="${l.dnf ? "is-dnf" : l.rangEcole <= 3 ? `podium podium--${l.rangEcole}` : ""}">
-          <td><b>${l.dnf ? "DNF" : l.rangEcole}</b></td><td>${l.position}</td><td>${esc(l.dossard)}</td><td>${esc(l.nom)}</td><td>${esc(l.prenom)}</td>
-          <td>${esc(l.categorie)}</td><td>${esc(l.sexe)}</td><td class="r mono"><b>${l.temps}</b></td></tr>`).join("")}</tbody>
+        <thead><tr><th>${rangTitre}</th><th>#Gén.</th><th>Dossard</th><th>Nom</th><th>Prénom</th><th class="${colAutre}">${titreAutre}</th><th>Catégorie</th><th>Sexe</th><th class="r">Temps</th></tr></thead>
+        <tbody>${g.participants.map((l) => `<tr class="${l.dnf || l.absent ? "is-dnf" : l.enCours ? "is-wait" : l[champRang] <= 3 ? `podium podium--${l[champRang]}` : ""}">
+          <td><b>${l[champRang] ?? (l.dnf ? "DNF" : "-")}</b></td><td>${l.position}</td><td>${esc(l.dossard)}</td><td>${esc(l.nom)}</td><td>${esc(l.prenom)}</td>
+          <td class="${colAutre}">${esc(l[autre])}</td><td>${esc(l.categorie)}</td><td>${esc(l.sexe)}</td><td class="r mono"><b>${l.enCours ? "En course" : l.temps}</b></td></tr>`).join("")}</tbody>
       </table></div>
-    </article>`).join("") : `<p class="muted">Le classement par école apparaît dès les premières arrivées. Une école est classée à la somme des temps de ses 3 premiers.</p>`;
+    </article>`).join("") : "";
+}
+
+/** Effectif d'une école ou d'un club : tous les inscrits, dont arrivés, DNF, en course, non partants. */
+function effectifEquipe(g) {
+  return [`${g.nbInscrits} inscrit(s)`, `${g.nbFinishers} classé(s)`, g.nbDnf && `${g.nbDnf} DNF`,
+    g.nbEnCours && `${g.nbEnCours} en course`, g.nbAbsents && `${g.nbAbsents} non partant(s)`].filter(Boolean);
 }
 
 $("#resultatsCourse").addEventListener("change", (e) => { resultatsSel = e.target.value || null; rendreResultats(); });
@@ -1002,7 +1046,7 @@ function rendreListeArchives() {
     <details class="saison" data-annee="${annee}"${q || anneesOuvertes.has(annee) ? " open" : ""}>
       <summary>${annee}<span>${liste.length}</span></summary>
       <ul>${liste.map(({ a, c }) => {
-        const res = a.donnees ? calc.resultatsDe(c, a.donnees.inscrits) : null;
+        const res = a.donnees ? calc.resultatsDe(c, a.donnees.inscrits, a.donnees.theme) : null;
         const meta = c ? [fmtDate(c.date), c.lieu].filter(Boolean).join(" · ") : "Ancienne archive (PDF seul)";
         return `<li><button class="archive-item${a.id === archiveSel ? " is-on" : ""}" data-id="${a.id}">
           <b>${marquer(a.nom)}</b><small>${esc(meta) || "&nbsp;"}</small><em>${res ? `${res.nbClasses} cl.` : "PDF"}</em>
@@ -1037,20 +1081,20 @@ async function rendreArchives() {
   $("#barreThemeArchive").hidden = !d;
 
   if (d) {
-    const res = calc.resultatsDe(c, d.inscrits);
+    const res = calc.resultatsDe(c, d.inscrits, d.theme);
     const partants = d.inscrits.filter((i) => i.depart != null).length;
     const nbDnf = res.individuel.filter((l) => l.dnf).length;
     const podium = res.individuel.filter((l) => !l.dnf && !l.enCours).slice(0, 3);
-    const ecole = res.ecoles.find((g) => g.somme != null);
+    const ecole = res.ecoles.find((g) => g.somme != null && g.ecole !== "(sans école)") || res.clubs.find((g) => g.somme != null && g.ecole !== "(sans club)");
     $("#resumeArchive").innerHTML = `
       <div class="resume__tuile"><small>Partants</small><b>${partants}</b></div>
       <div class="resume__tuile"><small>Classés</small><b>${res.nbClasses}</b></div>
       <div class="resume__tuile"><small>DNF</small><b>${nbDnf}</b></div>
       <div class="resume__tuile resume__tuile--large"><small>Podium</small>${podium.length ? `<ol class="resume__podium">${podium.map((l) =>
-        `<li><em>${l.position}</em><span>${esc(`${l.prenom} ${l.nom}`.trim())}${l.ecole ? ` <small class="muted">· ${esc(l.ecole)}</small>` : ""}</span><b>${l.temps}</b></li>`).join("")}</ol>` : `<p class="meta">Aucun classé.</p>`}</div>
-      <div class="resume__tuile resume__tuile--large"><small>Première école / club</small>${ecole ? `<p class="resume__ecole"><b>${esc(ecole.ecole)}</b><span class="muted">top 3 : ${ecole.sommeTxt}</span></p>` : `<p class="meta">Aucune école avec 3 classés.</p>`}</div>`;
+        `<li><em>${l.position}</em><span>${esc(`${l.prenom} ${l.nom}`.trim())}${l.ecole || l.club ? ` <small class="muted">· ${esc(l.ecole || l.club)}</small>` : ""}</span><b>${l.temps}</b></li>`).join("")}</ol>` : `<p class="meta">Aucun classé.</p>`}</div>
+      <div class="resume__tuile resume__tuile--large"><small>Première école / club</small>${ecole ? `<p class="resume__ecole"><b>${esc(ecole.ecole)}</b><span class="muted">${res.regle.txt} : ${ecole.scoreTxt}</span></p>` : `<p class="meta">Aucune école complète (${res.regle.nb} classés).</p>`}</div>`;
     const themes = [...state.themes].sort((x, y) => (y.defaut - x.defaut) || x.nom.localeCompare(y.nom, "fr"));
-    $("#themeArchive").innerHTML = `<option value="">${d.theme ? `Thème d'origine (« ${esc(d.theme.nom)} »)` : "Thème d'origine (par défaut)"}</option>` +
+    $("#themeArchive").innerHTML = `<option value="">${d.theme ? `Modèle d'origine (« ${esc(d.theme.nom)} »)` : "Modèle d'origine (par défaut)"}</option>` +
       themes.map((t) => `<option value="${t.id}">${esc(t.nom)}</option>`).join("");
   } else {
     $("#resumeArchive").innerHTML = `<p class="meta">Ancienne archive : seul le PDF des résultats a été conservé (les données de la course n'étaient pas encore archivées).</p>`;
@@ -1088,7 +1132,7 @@ $("#btnPdfArchive").addEventListener("click", () => { const a = archiveCourante(
 $("#btnExcelArchive").addEventListener("click", () => {
   const a = archiveCourante();
   if (!a?.donnees) return;
-  try { excel.exporterResultats(nomFichier("Resultats_", a.nom, "xlsx"), calc.resultatsDe(a.donnees.course, a.donnees.inscrits)); }
+  try { excel.exporterResultats(nomFichier("Resultats_", a.nom, "xlsx"), calc.resultatsDe(a.donnees.course, a.donnees.inscrits, a.donnees.theme)); }
   catch (err) { toast(err.message, "err"); }
 });
 
@@ -1098,10 +1142,10 @@ $("#btnRefairePdf").addEventListener("click", async () => {
   const choix = $("#themeArchive").value;
   const t = choix ? theme(choix) : a.donnees.theme;
   try {
-    const blob = genererPdf({ course: a.donnees.course, theme: t, res: calc.resultatsDe(a.donnees.course, a.donnees.inscrits) });
+    const blob = genererPdf({ course: a.donnees.course, theme: t, res: calc.resultatsDe(a.donnees.course, a.donnees.inscrits, t) });
     await store.archives.ajouter({ ...a, blob, taille: blob.size });
     await rendreArchives();
-    toast(`PDF refait${choix ? ` avec le thème « ${t.nom} »` : " avec le thème d'origine"}.`);
+    toast(`PDF refait${choix ? ` avec le modèle « ${t.nom} »` : " avec le modèle d'origine"}.`);
   } catch (err) {
     toast(`Erreur lors de la génération du PDF : ${err.message}`, "err");
   }
@@ -1123,13 +1167,22 @@ $("#btnSupprimerArchive").addEventListener("click", async () => {
 // ══════════════════════════════════════════════════════════════
 // ADMINISTRATION
 // ══════════════════════════════════════════════════════════════
+/** Résumé du contenu d'un modèle PDF, pour sa carte : « Général + écoles · 7 colonnes · portrait ». */
+function resumeModele(t) {
+  const noms = { general: "Général", sexe: "sexe", categorie: "catégories", ecole: "écoles", club: "clubs", podiums: "podiums" };
+  const classements = sectionsDe(t).map((cle) => noms[cle]).join(" + ") || "Aucun classement";
+  const cols = Array.isArray(t.colonnes) ? t.colonnes : COLONNES_DEFAUT;
+  const nbCol = cols.length + (cols.includes("temps") ? 1 : 2); // « # » et le temps toujours là
+  return `${classements.charAt(0).toUpperCase()}${classements.slice(1)} · ${nbCol} colonnes · ${t.paysage ? "paysage" : "portrait"}`;
+}
+
 function rendreAdmin() {
   const themes = [...state.themes].sort((a, b) => (b.defaut - a.defaut) || a.nom.localeCompare(b.nom, "fr"));
   $("#grilleThemes").innerHTML = themes.map((t) => {
     const nb = state.courses.filter((c) => c.themeId === t.id).length;
     return `<button class="theme-card" data-id="${t.id}" ${t.defaut ? 'aria-disabled="true"' : ""}>
       <span class="theme-card__band" style="background:${esc(t.couleur)}">${t.logo ? `<img src="${t.logo}" alt="">` : ""}</span>
-      <span class="theme-card__body"><b>${esc(t.nom)}</b><small>${t.defaut ? "Thème par défaut (non modifiable)" : esc(t.titre || "Sans titre")}</small><small>${nb} course(s)</small></span>
+      <span class="theme-card__body"><b>${esc(t.nom)}</b><small>${esc(resumeModele(t))}</small><small>${t.defaut ? "Modèle par défaut (non modifiable) · " : ""}${nb} course(s)</small></span>
     </button>`;
   }).join("");
   if (!baremeModifie) chargerBareme();
@@ -1263,25 +1316,244 @@ $("#btnRetablirBareme").addEventListener("click", async () => {
 
 let logoEnCours = null;
 
+// ── Éditeur de modèle PDF : on glisse les classements et les colonnes sur la page ─
+// L'ordre des blocs sur la page est celui du PDF. Souris, doigt (Pointer Events) ou clavier.
+const edition = { colonnes: [], sections: [], podiumsSansCumul: false };
+const DEFS = { colonnes: COLONNES_PDF, sections: SECTIONS_PDF };
+// Colonnes retirées par chaque classement (comme dans le PDF)
+const SANS_SECTION = { sexe: ["sexe", "rangSexe"], categorie: ["categorie", "rangCategorie"], ecole: ["ecole"], club: ["club"] };
+const TITRES_SECTION = { general: "Classement général", sexe: "Classement par sexe", categorie: "Classement par catégorie",
+  ecole: "Classement par école", club: "Classement par club", podiums: "Podiums" };
+const EN_GROUPES = ["sexe", "categorie", "ecole", "club", "podiums"];
+
+function colonnesSection(cle) {
+  if (cle === "podiums") {
+    const a = (k) => edition.colonnes.includes(k);
+    return [...(a("nomPrenom") ? ["dossard", "nomPrenom"] : ["dossard", "nom", "prenom"]), ...(["ecole", "club"].filter(a).length ? ["ecole", "club"].filter(a) : ["ecole"]), "temps"];
+  }
+  return edition.colonnes.filter((c) => !(SANS_SECTION[cle] || []).includes(c));
+}
+const titreCol = (cle) => COLONNES_PDF.find((c) => c.cle === cle)?.titre || cle;
+
+function puce(c, surPage) {
+  return `<span class="puce" data-type="colonnes" data-cle="${c.cle}" tabindex="0" role="listitem" title="${esc(c.aide || c.titre)}"${c.fixe ? " data-fixe" : ""}>${esc(c.titre)}${
+    surPage && !c.fixe ? `<button type="button" class="puce__x" data-retirer aria-label="Retirer ${esc(c.titre)}">×</button>` : ""}</span>`;
+}
+
+function bloc(s, couleur) {
+  const groupes = EN_GROUPES.includes(s.cle);
+  const cols = ["#", ...colonnesSection(s.cle).map(titreCol)].join("  ·  ");
+  return `<div class="bloc" data-type="sections" data-cle="${s.cle}" tabindex="0" role="listitem">
+      <div class="bloc__tete" style="color:${couleur}"><span class="bloc__poignee" aria-hidden="true">⋮⋮</span>${esc(TITRES_SECTION[s.cle])}<small>${esc(s.aide)}</small>
+        <button type="button" class="bloc__x" data-retirer aria-label="Retirer ${esc(TITRES_SECTION[s.cle])}">×</button></div>
+      ${s.cle === "podiums" ? `<span class="bloc__saut">Nouvelle page</span>
+        <label class="bloc__option"><input type="checkbox" name="podiumsSansCumul"${edition.podiumsSansCumul ? " checked" : ""}>
+          Pas de cumul : un coureur sur le podium scratch laisse sa place au suivant sur le podium de sa catégorie</label>` : ""}
+      ${groupes ? `<span class="bloc__bande" style="background:${couleur}"></span>` : ""}
+      <span class="bloc__cols">${esc(cols)}</span>
+      <span class="bloc__ligne bloc__ligne--1"></span><span class="bloc__ligne bloc__ligne--2"></span><span class="bloc__ligne bloc__ligne--3"></span>
+    </div>`;
+}
+
+/** Affiche la page (blocs dans l'ordre) et les réserves (ce qui n'est pas sur la page, dans l'ordre proposé). */
+function rendreConstructeur(focus = null) {
+  const couleur = couleurModele();
+  $("#pageColonnes").innerHTML = edition.colonnes.map((cle) => COLONNES_PDF.find((c) => c.cle === cle)).filter(Boolean).map((c) => puce(c, true)).join("");
+  $("#reserveColonnes").innerHTML = COLONNES_PDF.filter((c) => !edition.colonnes.includes(c.cle)).map((c) => puce(c, false)).join("");
+  $("#pageSections").innerHTML = edition.sections.map((cle) => SECTIONS_PDF.find((x) => x.cle === cle)).filter(Boolean).map((x) => bloc(x, couleur)).join("");
+  $("#reserveSections").innerHTML = SECTIONS_PDF.filter((x) => !edition.sections.includes(x.cle))
+    .map((x) => `<div class="dispo" data-type="sections" data-cle="${x.cle}" tabindex="0" role="listitem">${esc(TITRES_SECTION[x.cle])}<small>${esc(x.aide)}</small></div>`).join("");
+  const equipes = edition.sections.includes("ecole") || edition.sections.includes("club");
+  $("#regleEcoles").setAttribute("aria-disabled", String(!equipes));
+  if (focus) $(`#formTheme [data-type="${focus.type}"][data-cle="${focus.cle}"]`)?.focus();
+}
+
+function ajouter(type, cle, index = null) {
+  const liste = edition[type].filter((k) => k !== cle);
+  // Une colonne ajoutée sans place précise se met avant le temps
+  const pos = index ?? (type === "colonnes" && liste.includes("temps") ? liste.indexOf("temps") : liste.length);
+  liste.splice(pos, 0, cle);
+  edition[type] = liste;
+}
+function retirer(type, cle) {
+  if (DEFS[type].find((d) => d.cle === cle)?.fixe) return;
+  edition[type] = edition[type].filter((k) => k !== cle);
+}
+
+// Clic : « + » d'une réserve ajoute, « × » retire (sauf juste après un glisser)
+let clicIgnore = false;
+$("#formTheme").addEventListener("click", (e) => {
+  if (clicIgnore) { clicIgnore = false; return; }
+  const el = e.target.closest("[data-type]");
+  if (!el) return;
+  const { type, cle } = el.dataset;
+  if (e.target.closest("[data-retirer]")) { retirer(type, cle); rendreConstructeur(); return; }
+  if (el.closest("[data-reserve]")) { ajouter(type, cle); rendreConstructeur({ type, cle }); }
+});
+
+// Clavier : flèches pour déplacer sur la page, Suppr pour retirer, Entrée pour ajouter depuis une réserve
+$("#formTheme").addEventListener("keydown", (e) => {
+  const el = e.target.closest?.("[data-type]");
+  if (!el || e.target !== el) return;
+  const { type, cle } = el.dataset;
+  const surPage = !el.closest("[data-reserve]");
+  if (!surPage && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); ajouter(type, cle); rendreConstructeur({ type, cle }); return; }
+  if (!surPage) return;
+  const i = edition[type].indexOf(cle);
+  if (["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(e.key)) {
+    e.preventDefault();
+    const j = i + (e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1);
+    if (j < 0 || j >= edition[type].length) return;
+    ajouter(type, cle, j);
+    rendreConstructeur({ type, cle });
+  } else if (e.key === "Delete" || e.key === "Backspace") {
+    e.preventDefault();
+    retirer(type, cle);
+    rendreConstructeur();
+  }
+});
+
+// Glisser-déposer (souris et tactile) : l'élément suit le pointeur, sa place sur la page se met à jour en direct
+let glisse = null;
+// Case « pas de cumul » du bloc Podiums : lue dès « input », avant que le formulaire ne redessine la page
+["input", "change"].forEach((type) => $("#pageSections").addEventListener(type, (e) => {
+  if (e.target.name === "podiumsSansCumul") edition.podiumsSansCumul = e.target.checked;
+}));
+
+$("#formTheme").addEventListener("pointerdown", (e) => {
+  const el = e.target.closest("[data-type]");
+  if (!el || e.button !== 0 || e.target.closest("button, label, input")) return;
+  glisse = { el, type: el.dataset.type, x0: e.clientX, y0: e.clientY, id: e.pointerId, actif: false };
+});
+
+function zoneSous(x, y, type) {
+  const sous = document.elementFromPoint(x, y);
+  return sous?.closest(`[data-zone="${type}"]`) || null;
+}
+
+/** Place l'élément dans la zone de la page, à l'endroit du pointeur. */
+function placer(zone, el, x, y) {
+  const autres = [...zone.children].filter((c) => c !== el && c.dataset.type);
+  const ligne = zone.dataset.sens === "ligne";
+  const avant = autres.find((c) => {
+    const r = c.getBoundingClientRect();
+    return ligne ? y < r.top || (y <= r.bottom && x < r.left + r.width / 2) : y < r.top + r.height / 2;
+  });
+  if (avant) { if (el.nextElementSibling !== avant) zone.insertBefore(el, avant); }
+  else if (zone.lastElementChild !== el) zone.appendChild(el);
+}
+
+document.addEventListener("pointermove", (e) => {
+  const g = glisse;
+  if (!g || e.pointerId !== g.id) return;
+  if (!g.actif) {
+    if (Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 6) return;
+    // Départ : un fantôme suit le pointeur ; l'original reste en place, estompé
+    const r = g.el.getBoundingClientRect();
+    g.actif = true;
+    g.depuisReserve = !!g.el.closest("[data-reserve]");
+    g.origine = { parent: g.el.parentNode, suivant: g.el.nextSibling };
+    g.dx = e.clientX - r.left; g.dy = e.clientY - r.top;
+    g.vol = g.el.cloneNode(true);
+    g.vol.classList.add("vol");
+    g.vol.style.width = `${r.width}px`;
+    $("#dlgTheme").appendChild(g.vol);
+    if (g.depuisReserve) {
+      // Depuis la réserve : l'élément à placer devient une puce / un bloc de page
+      const def = DEFS[g.type].find((d) => d.cle === g.el.dataset.cle);
+      const tmp = document.createElement("div");
+      tmp.innerHTML = g.type === "colonnes" ? puce(def, true) : bloc(def, couleurModele());
+      g.place = tmp.firstElementChild;
+    } else g.place = g.el;
+    g.place.classList.add("is-glisse");
+  }
+  e.preventDefault();
+  g.vol.style.transform = `translate(${e.clientX - g.dx}px, ${e.clientY - g.dy}px)`;
+  const zone = zoneSous(e.clientX, e.clientY, g.type);
+  const page = zone && !zone.hasAttribute("data-reserve") ? zone : null;
+  const reserve = zone?.hasAttribute("data-reserve") && !g.place.hasAttribute("data-fixe") ? zone : null;
+  $$("#formTheme .is-cible").forEach((z) => z.classList.remove("is-cible"));
+  if (page) { page.classList.add("is-cible"); placer(page, g.place, e.clientX, e.clientY); }
+  else {
+    if (reserve && !g.depuisReserve) reserve.classList.add("is-cible");
+    // Hors de la page : l'élément reprend sa place d'origine (ou quitte la page s'il venait de la réserve)
+    if (g.depuisReserve) g.place.remove();
+    else if (g.place.parentNode !== g.origine.parent || g.place.nextSibling !== g.origine.suivant) g.origine.parent.insertBefore(g.place, g.origine.suivant);
+  }
+  g.cible = page ? "page" : reserve ? "reserve" : null;
+  // Défilement automatique près des bords : la colonne sous le pointeur (grand écran) ou la fenêtre
+  const sous = document.elementFromPoint(e.clientX, e.clientY)?.closest(".modele__outils, .modele__page");
+  const sc = sous && sous.scrollHeight > sous.clientHeight ? sous : $("#dlgTheme");
+  const rd = sc.getBoundingClientRect();
+  if (e.clientY > rd.bottom - 40) sc.scrollTop += 12;
+  else if (e.clientY < rd.top + 40) sc.scrollTop -= 12;
+}, { passive: false });
+
+function finGlisse(e) {
+  const g = glisse;
+  if (!g || e.pointerId !== g.id) return;
+  glisse = null;
+  if (!g.actif) return;
+  clicIgnore = true;
+  setTimeout(() => { clicIgnore = false; }, 0);
+  g.vol.remove();
+  $$("#formTheme .is-cible").forEach((z) => z.classList.remove("is-cible"));
+  const cle = g.el.dataset.cle;
+  if (g.cible === "reserve" && !g.depuisReserve) retirer(g.type, cle);
+  else if (g.cible === "page" && e.type === "pointerup") edition[g.type] = [...$(`#formTheme [data-zone="${g.type}"]:not([data-reserve])`).children].map((c) => c.dataset.cle);
+  rendreConstructeur({ type: g.type, cle });
+}
+document.addEventListener("pointerup", finGlisse);
+document.addEventListener("pointercancel", finGlisse);
+
+function remplirContenu(m) {
+  const f = $("#formTheme");
+  const colonnes = Array.isArray(m.colonnes) ? m.colonnes : COLONNES_DEFAUT;
+  edition.colonnes = colonnes.includes("temps") ? [...colonnes] : [...colonnes, "temps"]; // anciens modèles : temps en dernier
+  edition.sections = sectionsDe(m);
+  edition.podiumsSansCumul = !!m.podiumsSansCumul;
+  // Nouveau modèle : 5 premiers aux places ; modèle existant sans réglage : 3 meilleurs temps (comme avant)
+  f.ecoleNb.value = m.ecoleNb ?? (m.nom ? 3 : 5);
+  f.ecoleMode.value = m.ecoleMode ?? (m.nom ? "temps" : "places");
+  f.paysage.value = m.paysage ? "1" : "";
+}
+
+function ongletModele(nom) {
+  $$("#formTheme [data-onglet]").forEach((b) => b.classList.toggle("is-on", b.dataset.onglet === nom));
+  $$("#formTheme [data-panneau]").forEach((p) => { p.hidden = p.dataset.panneau !== nom; });
+}
+$$("#formTheme [data-onglet]").forEach((b) => b.addEventListener("click", () => ongletModele(b.dataset.onglet)));
+
+const couleurModele = () => {
+  const v = $("#formTheme").couleur.value;
+  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v) ? v : "#15291F";
+};
+
+/** En-tête de la page (apparence) puis blocs (contenu). */
 function apercuTheme() {
   const f = $("#formTheme");
-  const couleur = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(f.couleur.value) ? f.couleur.value : "#15291F";
+  const couleur = couleurModele();
   $("#apercuMarque").style.color = couleur;
-  $("#apercuSection").style.color = couleur;
   $("#apercuTrait").style.background = couleur;
   $("#apercuTitre").textContent = f.titre.value.trim() || "Nom de la course";
-  $("#apercuTitre").style.fontSize = `${Math.min(26, Math.max(10, +f.tailleTitre.value || 16))}px`;
+  $("#apercuTitre").style.fontSize = `${Math.min(30, Math.max(11, (+f.tailleTitre.value || 16) * 1.15))}px`;
   $("#apercuSous").textContent = f.sousTitre.value.trim();
+  $("#apercuPied").textContent = `${f.piedPage.value.trim() || "Loopace Chrono"} — Page 1 / 1`;
   const img = $("#apercuLogo");
   img.hidden = !logoEnCours;
-  if (logoEnCours) { img.src = logoEnCours; img.style.width = img.style.height = `${Math.min(80, Math.max(16, (+f.tailleLogo.value || 60) * 0.6))}px`; }
+  if (logoEnCours) { img.src = logoEnCours; img.style.width = img.style.height = `${Math.min(90, Math.max(18, (+f.tailleLogo.value || 60) * 0.7))}px`; }
   $("#btnLogoRetirer").hidden = !logoEnCours;
+  $("#apercuPage").classList.toggle("is-paysage", !!f.paysage.value);
+  $("#champEcoleNb").hidden = f.ecoleMode.value === "nombre"; // la plus représentée : tous les inscrits comptent
+  rendreConstructeur();
 }
 
 async function editerTheme(t) {
   const f = $("#formTheme");
-  $("#dlgThemeTitre").textContent = t ? `Thème « ${t.nom} »` : "Nouveau thème PDF";
+  $("#dlgThemeTitre").textContent = t ? `Modèle « ${t.nom} »` : "Nouveau modèle PDF";
   $("#btnSupprimerTheme").hidden = !t;
+  $("#btnDupliquerTheme").hidden = !t;
+  $("#erreurModele").textContent = "";
   f.nom.value = t?.nom || "";
   f.couleur.value = t?.couleur || "#15291F";
   f.couleurPicker.value = /^#[0-9a-f]{6}$/i.test(f.couleur.value) ? f.couleur.value : "#15291F";
@@ -1290,26 +1562,52 @@ async function editerTheme(t) {
   f.piedPage.value = t?.piedPage || "";
   f.tailleLogo.value = t?.tailleLogo ?? 60;
   f.tailleTitre.value = t?.tailleTitre ?? 16;
-  f.afficherEcoles.checked = t ? t.afficherEcoles !== false : true;
+  remplirContenu(t || {});
   logoEnCours = t?.logo || null;
+  ongletModele("contenu");
   apercuTheme();
 
-  const r = await ouvrirDialogue($("#dlgTheme"));
-  if (r === "supprimer" && t) {
-    const nb = state.courses.filter((c) => c.themeId === t.id).length;
-    if (!await confirmer("Supprimer le thème", `Supprimer le thème « ${t.nom} » ?` + (nb ? `\n\n${nb} course(s) l'utilisent : elles reprendront la mise en page par défaut.` : ""), { oui: "Supprimer", danger: true })) return;
-    state.themes = state.themes.filter((x) => x.id !== t.id);
-    state.courses.forEach((c) => { if (c.themeId === t.id) c.themeId = null; });
-    await store.sauver();
-    rendre();
-    return;
+  for (;;) {
+    const r = await ouvrirDialogue($("#dlgTheme"));
+    if (r === "dupliquer" && t) {
+      // Copie du modèle tel qu'il est enregistré, ouverte aussitôt pour la modifier
+      await dupliquerModele(t);
+      return;
+    }
+    if (r === "supprimer" && t) {
+      const nb = state.courses.filter((c) => c.themeId === t.id).length;
+      if (!await confirmer("Supprimer le modèle", `Supprimer le modèle « ${t.nom} » ?` + (nb ? `\n\n${nb} course(s) l'utilisent : elles reprendront la mise en page par défaut.` : ""), { oui: "Supprimer", danger: true })) return;
+      state.themes = state.themes.filter((x) => x.id !== t.id);
+      state.courses.forEach((c) => { if (c.themeId === t.id) c.themeId = null; });
+      await store.sauver();
+      rendre();
+      return;
+    }
+    if (r !== "ok" || !f.nom.value.trim()) return;
+    if (!edition.sections.length) {
+      $("#erreurModele").textContent = "Glissez au moins un classement sur la page.";
+      ongletModele("contenu");
+      continue; // on rouvre, saisie conservée
+    }
+    break;
   }
-  if (r !== "ok" || !f.nom.value.trim()) return;
   const valeurs = {
     nom: f.nom.value.trim(),
     couleur: /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(f.couleur.value) ? f.couleur.value : "#15291F",
     logo: logoEnCours, titre: f.titre.value.trim(), sousTitre: f.sousTitre.value.trim(), piedPage: f.piedPage.value.trim(),
-    afficherEcoles: f.afficherEcoles.checked,
+    // Ordre des classements ; les cases d'origine restent renseignées pour les anciennes versions
+    sections: [...edition.sections],
+    classementGeneral: edition.sections.includes("general"),
+    classementSexe: edition.sections.includes("sexe"),
+    classementCategorie: edition.sections.includes("categorie"),
+    afficherEcoles: edition.sections.includes("ecole"),
+    afficherClubs: edition.sections.includes("club"),
+    ecoleNb: Math.min(10, Math.max(1, parseInt(f.ecoleNb.value, 10) || 3)),
+    ecoleMode: ["places", "temps", "nombre"].includes(f.ecoleMode.value) ? f.ecoleMode.value : "temps",
+    podiums: edition.sections.includes("podiums"),
+    podiumsSansCumul: edition.podiumsSansCumul,
+    colonnes: [...edition.colonnes],
+    paysage: !!f.paysage.value,
     tailleLogo: Math.min(200, Math.max(20, parseInt(f.tailleLogo.value, 10) || 60)),
     tailleTitre: Math.min(48, Math.max(8, parseInt(f.tailleTitre.value, 10) || 16)),
   };
@@ -1317,15 +1615,32 @@ async function editerTheme(t) {
   else state.themes.push({ id: uid(), defaut: false, ...valeurs });
   await store.sauver();
   rendre();
-  toast(t ? "Thème modifié." : "Thème créé.");
+  toast(t ? "Modèle modifié." : "Modèle créé.");
 }
 
 $("#btnNouveauTheme").addEventListener("click", () => editerTheme(null));
-$("#grilleThemes").addEventListener("click", (e) => {
+
+/** Copie un modèle (« Nom (copie) ») et ouvre la copie dans l'éditeur. */
+async function dupliquerModele(t) {
+  const noms = new Set(state.themes.map((x) => x.nom));
+  const base = t.nom.replace(/ \(copie(?: \d+)?\)$/, ""); // copie d'une copie : « Nom (copie 2) »
+  let nom = `${base} (copie)`;
+  for (let k = 2; noms.has(nom); k++) nom = `${base} (copie ${k})`;
+  const copie = { ...structuredClone(t), id: uid(), defaut: false, nom };
+  state.themes.push(copie);
+  await store.sauver();
+  rendre();
+  toast(`Modèle « ${nom} » créé.`);
+  editerTheme(copie);
+}
+$("#grilleThemes").addEventListener("click", async (e) => {
   const b = e.target.closest(".theme-card");
   if (!b) return;
   const t = theme(b.dataset.id);
-  if (t?.defaut) { toast("Le thème par défaut n'est pas modifiable : créez un nouveau thème.", "warn"); return; }
+  if (t?.defaut) {
+    if (await confirmer("Modèle par défaut", "Le modèle par défaut n'est pas modifiable.\n\nLe dupliquer pour en faire un modèle à vous ?", { oui: "Dupliquer" })) dupliquerModele(t);
+    return;
+  }
   editerTheme(t);
 });
 
@@ -1335,6 +1650,7 @@ $("#formTheme").addEventListener("input", (e) => {
   if (e.target.name === "couleur" && /^#[0-9a-f]{6}$/i.test(f.couleur.value)) f.couleurPicker.value = f.couleur.value;
   apercuTheme();
 });
+$("#formTheme").addEventListener("change", () => apercuTheme());
 
 $("#btnLogo").addEventListener("click", () => $("#fichierLogo").click());
 $("#btnLogoRetirer").addEventListener("click", () => { logoEnCours = null; apercuTheme(); });

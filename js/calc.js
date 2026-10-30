@@ -1,7 +1,7 @@
-// Logique métier : départ, arrivées, arrêt, classements individuel et par école.
+// Logique métier : départ, arrivées, arrêt, classements individuel, par école et par club.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe } from "./store.js?v=14";
+import { state, course, inscritsDe, theme } from "./store.js?v=18";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");
@@ -126,6 +126,7 @@ export function reinitialiser(courseId) {
 function ligne(i, position) {
   const ms = duree(i);
   const dnf = i.statut === "DNF";
+  const absent = i.depart == null; // inscrit qui n'a pas pris le départ (seulement dans les écoles / clubs)
   return {
     id: i.id,
     position: dnf ? "DNF" : position != null ? String(position) : "-",
@@ -133,24 +134,86 @@ function ligne(i, position) {
     nom: i.nom || "",
     prenom: i.prenom || "",
     ecole: i.ecole || "",
+    club: i.club || "",
+    licence: i.licence || "",
     categorie: i.categorie || "",
     sexe: i.sexe || "",
     naissance: i.annee ? String(i.annee) : "",
     ms,
-    temps: dnf ? "DNF" : fmtDuree(ms),
+    temps: dnf ? "DNF" : absent ? "Non partant" : fmtDuree(ms),
     dnf,
-    enCours: !dnf && ms == null,
+    absent,
+    enCours: !dnf && !absent && ms == null,
     rangEcole: null,
+    rangClub: null,
+    rangCategorie: null,
+    rangSexe: null,
+    rangCatSexe: null,
   };
 }
 
-/** Classement individuel (au temps), puis classement par école (somme des 3 meilleurs temps). */
-export function resultats(courseId) {
-  return resultatsDe(course(courseId), inscritsDe(courseId));
+/**
+ * Règle des classements par école et par club, fixée par le modèle PDF de la course :
+ * les N premiers de chaque équipe au total de leurs places au général ou de leurs temps (le plus petit gagne),
+ * ou l'équipe la plus représentée (le plus d'inscrits gagne).
+ */
+export function regleEcoles(t) {
+  const nb = Math.min(10, Math.max(1, parseInt(t?.ecoleNb, 10) || 3));
+  const mode = ["places", "temps", "nombre"].includes(t?.ecoleMode) ? t.ecoleMode : "temps";
+  const txt = { places: `${nb} premières places`, temps: `${nb} meilleurs temps`, nombre: "nombre d'inscrits" }[mode];
+  return { nb, mode, txt };
 }
 
-/** Mêmes résultats calculés sur une course et ses inscrits donnés (par exemple ceux d'une archive). */
-export function resultatsDe(c, inscrits) {
+const SEXES = { F: "Filles", M: "Garçons" };
+
+/**
+ * Écoles, clubs ou les deux, selon la fiche course. Course créée avant ce réglage :
+ * les deux si des clubs sont renseignés, sinon les écoles seules.
+ */
+export function equipesDe(c, inscrits = []) {
+  const choix = ["ecole", "club", "les2"].includes(c?.equipes) ? c.equipes : inscrits.some((i) => i.club) ? "les2" : "ecole";
+  return { choix, ecole: choix !== "club", club: choix !== "ecole" };
+}
+
+/** École ou club d'un participant à afficher (chronomètre, écran public), selon le réglage de la course. */
+export const equipeAffichee = (i, eq) => (eq.ecole && i.ecole) || (eq.club && i.club) || "";
+
+/** Classements de la course, avec la règle des écoles de son modèle PDF. */
+export function resultats(courseId) {
+  const c = course(courseId);
+  return resultatsDe(c, inscritsDe(courseId), theme(c?.themeId));
+}
+
+/**
+ * Regroupe des lignes et numérote les arrivés de chaque groupe dans « champRang » ;
+ * à la suite : DNF, encore en course, puis non partants, par dossard.
+ */
+function grouper(lignes, cle, champRang) {
+  const groupes = new Map();
+  lignes.forEach((l) => {
+    const nom = cle(l);
+    if (!groupes.has(nom)) groupes.set(nom, []);
+    groupes.get(nom).push(l);
+  });
+  return [...groupes.entries()].map(([nom, membres]) => {
+    const finishers = membres.filter((l) => !l.dnf && l.ms != null).sort((a, b) => a.ms - b.ms);
+    finishers.forEach((l, k) => { l[champRang] = k + 1; });
+    const parDossard = (a, b) => compareDossard(a.dossard, b.dossard);
+    const dnfs = membres.filter((l) => l.dnf).sort(parDossard);
+    const enCours = membres.filter((l) => l.enCours).sort(parDossard);
+    const absents = membres.filter((l) => l.absent).sort(parDossard);
+    return {
+      nom, participants: [...finishers, ...dnfs, ...enCours, ...absents],
+      nbFinishers: finishers.length, nbDnf: dnfs.length, nbEnCours: enCours.length, nbAbsents: absents.length, nbInscrits: membres.length,
+    };
+  });
+}
+
+/**
+ * Mêmes résultats calculés sur une course et ses inscrits donnés (par exemple ceux d'une archive).
+ * « t » est le modèle PDF : il fixe la règle du classement par école (voir regleEcoles).
+ */
+export function resultatsDe(c, inscrits, t = null) {
   const { partants, dnf, enCours } = situationDe(inscrits);
   const arrives = partants.filter((i) => i.arrivee != null).sort((a, b) => duree(a) - duree(b));
 
@@ -158,30 +221,55 @@ export function resultatsDe(c, inscrits) {
   const lDnf = dnf.map((i) => ligne(i));
   const lEnCours = enCours.map((i) => ligne(i));
   const individuel = [...lArrives, ...lDnf, ...lEnCours];
+  const classes = [...lArrives, ...lDnf];
 
-  const groupes = new Map();
-  [...lArrives, ...lDnf].forEach((l) => {
-    const cle = l.ecole.trim() || "(sans école)";
-    if (!groupes.has(cle)) groupes.set(cle, []);
-    groupes.get(cle).push(l);
-  });
+  // Par catégorie (les plus jeunes d'abord) et par sexe : rang de chacun dans son groupe
+  const anneeMoy = (g) => { const a = g.participants.map((l) => +l.naissance).filter(Boolean); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; };
+  const categories = grouper(classes, (l) => l.categorie.trim() || "(sans catégorie)", "rangCategorie")
+    .sort((a, b) => (a.nom === "(sans catégorie)") - (b.nom === "(sans catégorie)") || anneeMoy(b) - anneeMoy(a) || a.nom.localeCompare(b.nom, "fr", { numeric: true }));
+  const sexes = grouper(classes.filter((l) => SEXES[l.sexe]), (l) => l.sexe, "rangSexe")
+    .sort((a, b) => a.nom.localeCompare(b.nom)).map((g) => ({ ...g, nom: SEXES[g.nom] }));
+  // Rang dans la catégorie et le sexe (ex. M1-H(1)), comme les classements fédéraux
+  grouper(classes, (l) => `${l.categorie.trim()}|${l.sexe}`, "rangCatSexe");
 
-  const ecoles = [...groupes.entries()].map(([ecole, membres]) => {
-    const finishers = membres.filter((l) => !l.dnf).sort((a, b) => a.ms - b.ms)
-      .map((l, k) => ({ ...l, rangEcole: k + 1 }));
-    const dnfs = membres.filter((l) => l.dnf).sort((a, b) => compareDossard(a.dossard, b.dossard));
-    const somme = finishers.length >= 3 ? finishers[0].ms + finishers[1].ms + finishers[2].ms : null;
-    return { ecole, participants: [...finishers, ...dnfs], nbFinishers: finishers.length, nbDnf: dnfs.length, somme, meilleur: finishers[0]?.ms ?? null };
-  })
-    .sort((a, b) => (a.somme ?? Infinity) - (b.somme ?? Infinity) || (a.meilleur ?? Infinity) - (b.meilleur ?? Infinity))
-    .map((g, k) => ({ ...g, rang: k + 1, sommeTxt: g.somme != null ? fmtDuree(g.somme) : "-" }));
+  // Par école et par club : tous les inscrits de l'équipe sont listés ; seuls les arrivés comptent pour le score
+  const regle = regleEcoles(t);
+  const eq = equipesDe(c, inscrits);
+  const tous = [...classes, ...lEnCours, ...inscrits.filter((i) => i.depart == null).map((i) => ligne(i))];
+  const ecoles = eq.ecole ? equipes(tous, regle, "ecole", "(sans école)", "rangEcole") : [];
+  // Par club : seuls ceux qui ont un club renseigné (les autres ne forment pas une équipe)
+  const clubs = eq.club ? equipes(tous.filter((l) => l.club.trim()), regle, "club", "", "rangClub") : [];
 
   const morceaux = [`${lArrives.length} classé(s) / ${lDnf.length} DNF / ${partants.length} partant(s)`];
   if (c?.date) morceaux.push(fmtDate(c.date));
   let info = morceaux.join("  |  ");
   if (c?.distance) info += ` — ${String(c.distance).replace(".", ",")} km`;
 
-  return { individuel, ecoles, info, nbClasses: lArrives.length };
+  return { individuel, ecoles, clubs, equipes: eq, categories, sexes, regle, info, nbClasses: lArrives.length };
+}
+
+/** Classement par équipe (école ou club) : « ecole » porte le nom de l'équipe, quel que soit son type. */
+function equipes(lignes, regle, champ, sans, champRang) {
+  const nombre = regle.mode === "nombre";
+  return grouper(lignes, (l) => l[champ].trim() || sans, champRang).map((g) => {
+    const arrives = g.participants.filter((l) => l[champRang] != null);
+    const meilleur = arrives[0]?.ms ?? null;
+    // La plus représentée : le plus d'inscrits (score négatif pour trier du plus grand au plus petit)
+    if (nombre) return { ...g, ecole: g.nom, score: -g.nbInscrits, dernier: null, meilleur };
+    const retenus = arrives.slice(0, regle.nb);
+    const complet = retenus.length === regle.nb;
+    const score = !complet ? null : regle.mode === "places" ? retenus.reduce((s, l) => s + Number(l.position), 0) : retenus.reduce((s, l) => s + l.ms, 0);
+    const dernier = complet ? (regle.mode === "places" ? Number(retenus[retenus.length - 1].position) : retenus[retenus.length - 1].ms) : null;
+    return { ...g, ecole: g.nom, score, dernier, meilleur };
+  })
+    // Égalité : l'équipe dont le dernier coureur retenu est le mieux classé passe devant
+    // (la plus représentée : celle qui a le plus d'arrivés, puis le meilleur coureur)
+    .sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity) || (a.dernier ?? Infinity) - (b.dernier ?? Infinity)
+      || b.nbFinishers - a.nbFinishers || (a.meilleur ?? Infinity) - (b.meilleur ?? Infinity))
+    .map((g, k) => {
+      const scoreTxt = g.score == null ? "-" : nombre ? String(-g.score) : regle.mode === "places" ? `${g.score} pts` : fmtDuree(g.score);
+      return { ...g, rang: k + 1, somme: g.score, scoreTxt, sommeTxt: scoreTxt };
+    });
 }
 
 // ── Catégories automatiques ───────────────────────────────────

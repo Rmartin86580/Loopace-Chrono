@@ -16,14 +16,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=14">
+  <link rel="stylesheet" href="styles.css?v=18">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
   <!-- Excel (SheetJS) et PDF (jsPDF + AutoTable) : mis en cache par le service worker pour fonctionner hors ligne -->
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=14"></script>
+  <script type="module" src="js/app.js?v=18"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -96,7 +96,7 @@
               </div>
             </div>
             <div class="toolbar">
-              <input type="search" class="input" id="rechercheParticipant" placeholder="Rechercher un nom, une école, un dossard…">
+              <input type="search" class="input" id="rechercheParticipant" placeholder="Rechercher un nom, une école, un club, un dossard…">
               <div class="actions">
                 <button class="btn btn--sm" id="btnNouveauParticipant"><svg class="ico"><use href="#i-plus"/></svg>Participant</button>
                 <button class="btn btn--ghost btn--sm" id="btnExcel"><svg class="ico"><use href="#i-sheet"/></svg>Excel</button>
@@ -113,13 +113,14 @@
                 <option value="aNumeroter">Bulletin complet sans dossard</option>
               </select>
               <select class="input" id="filtreEcole" aria-label="Filtrer par école"></select>
+              <select class="input" id="filtreClub" aria-label="Filtrer par club"></select>
               <select class="input" id="filtreCategorie" aria-label="Filtrer par catégorie"></select>
               <button type="button" class="btn btn--ghost btn--sm" id="btnEffacerFiltres" hidden><svg class="ico"><use href="#i-x"/></svg>Effacer les filtres</button>
             </div>
             <p class="meta" id="statsParticipants"></p>
             <div class="table-wrap">
               <table class="table table--hover table--tri">
-                <thead><tr id="enteteParticipants"><th data-tri="dossard">Dossard</th><th data-tri="nom">Nom</th><th data-tri="prenom">Prénom</th><th data-tri="sexe">Sexe</th><th data-tri="annee">Né(e)</th><th data-tri="ecole">École / Club</th><th data-tri="categorie">Catégorie</th><th>Téléphone</th><th class="c" data-tri="bulletin">Bulletin</th></tr></thead>
+                <thead><tr id="enteteParticipants"><th data-tri="dossard">Dossard</th><th data-tri="nom">Nom</th><th data-tri="prenom">Prénom</th><th data-tri="sexe">Sexe</th><th data-tri="annee">Né(e)</th><th data-tri="ecole" class="col-ecole">École</th><th data-tri="club" class="col-club">Club</th><th data-tri="licence">Licence</th><th data-tri="categorie">Catégorie</th><th>Téléphone</th><th class="c" data-tri="bulletin">Bulletin</th></tr></thead>
                 <tbody id="tableParticipants"></tbody>
               </table>
             </div>
@@ -168,7 +169,7 @@
           <div class="card__head"><h2>Classement</h2><span class="meta" id="nbClasses"></span></div>
           <div class="table-wrap table-wrap--tall" id="scrollClassement">
             <table class="table table--nowrap">
-              <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>École</th><th>Arrivée</th><th class="r">Temps</th></tr></thead>
+              <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>École / Club</th><th>Arrivée</th><th class="r">Temps</th></tr></thead>
               <tbody id="tableArrivees"></tbody>
             </table>
           </div>
@@ -198,15 +199,17 @@
         <p class="meta" id="resultatsInfo"></p>
         <div class="seg" role="tablist">
           <button class="seg__btn is-on" data-seg="individuel" role="tab">Individuel</button>
-          <button class="seg__btn" data-seg="ecoles" role="tab">Par école / club</button>
+          <button class="seg__btn" data-seg="ecoles" role="tab">Par école</button>
+          <button class="seg__btn" data-seg="clubs" role="tab">Par club</button>
         </div>
-        <div id="segIndividuel" class="table-wrap">
+        <div id="segIndividuel" class="table-wrap equipes">
           <table class="table table--nowrap">
-            <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>Prénom</th><th>École / Club</th><th>Catégorie</th><th>Sexe</th><th>Né(e)</th><th class="r">Temps</th></tr></thead>
+            <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>Prénom</th><th class="col-ecole">École</th><th class="col-club">Club</th><th>Catégorie</th><th>Sexe</th><th>Né(e)</th><th class="r">Temps</th></tr></thead>
             <tbody id="tableResultats"></tbody>
           </table>
         </div>
         <div id="segEcoles" class="ecoles" hidden></div>
+        <div id="segClubs" class="ecoles" hidden></div>
       </div>
     </section>
 
@@ -241,7 +244,7 @@
             </div>
             <div class="resume" id="resumeArchive"></div>
             <div class="archive-pdf__barre" id="barreThemeArchive">
-              <label class="field field--inline"><span>Thème du PDF</span><select class="input" id="themeArchive"></select></label>
+              <label class="field field--inline"><span>Modèle du PDF</span><select class="input" id="themeArchive"></select></label>
               <button class="btn btn--ghost btn--sm" id="btnRefairePdf"><svg class="ico"><use href="#i-reset"/></svg>Refaire le PDF</button>
             </div>
             <iframe class="archive-pdf" id="pdfArchive" title="PDF des résultats archivés"></iframe>
@@ -254,8 +257,8 @@
     <section class="view" id="view-admin" hidden>
       <div class="card">
         <div class="card__head">
-          <div><h2>Thèmes PDF</h2><p class="meta">Couleur, logo et textes de la feuille de résultats. Choisissez le thème dans chaque course.</p></div>
-          <button class="btn btn--sm" id="btnNouveauTheme"><svg class="ico"><use href="#i-plus"/></svg>Nouveau thème</button>
+          <div><h2>Modèles PDF</h2><p class="meta">Contenu (classements, colonnes, orientation) et apparence (couleur, logo, titres) de la feuille de résultats. Choisissez le modèle dans chaque course, selon le type d'épreuve.</p></div>
+          <button class="btn btn--sm" id="btnNouveauTheme"><svg class="ico"><use href="#i-plus"/></svg>Nouveau modèle</button>
         </div>
         <div class="themes" id="grilleThemes"></div>
       </div>
@@ -347,8 +350,18 @@
       </fieldset>
 
       <fieldset class="form-section">
+        <legend>Participants</legend>
+        <label class="field"><span>Ils viennent</span><select class="input" name="equipes">
+          <option value="ecole">D'écoles</option>
+          <option value="club">De clubs</option>
+          <option value="les2">D'écoles et de clubs</option>
+        </select></label>
+        <p class="meta">Affiche les champs École et / ou Club et les classements correspondants.</p>
+      </fieldset>
+
+      <fieldset class="form-section">
         <legend>Feuille de résultats</legend>
-        <label class="field"><span>Thème PDF</span><select class="input" name="themeId" id="selectTheme"></select></label>
+        <label class="field"><span>Modèle PDF</span><select class="input" name="themeId" id="selectTheme"></select></label>
       </fieldset>
       </div>
       </div>
@@ -370,11 +383,14 @@
         <label class="field"><span>Prénom</span><input class="input" name="prenom" maxlength="100"></label>
         <label class="field"><span>Année de naissance</span><input class="input" name="annee" inputmode="numeric" maxlength="4"></label>
         <label class="field"><span>Téléphone</span><input class="input" name="telephone" type="tel" maxlength="30"></label>
-        <label class="field"><span>École / Club</span><input class="input" name="ecole" list="listeEcoles" maxlength="200"></label>
+        <label class="field col-ecole"><span>École</span><input class="input" name="ecole" list="listeEcoles" maxlength="200"></label>
+        <label class="field col-club"><span>Club</span><input class="input" name="club" list="listeClubs" maxlength="200"></label>
+        <label class="field"><span>N° de licence</span><input class="input" name="licence" maxlength="40"></label>
         <label class="field"><span>Catégorie <em class="field__hint" id="indiceCategorie"></em></span><input class="input" name="categorie" list="listeCategories" maxlength="100"></label>
         <label class="check field--full"><input type="checkbox" name="bulletin"> Bulletin d'inscription complet (le participant prend le départ)</label>
       </div>
       <datalist id="listeEcoles"></datalist>
+      <datalist id="listeClubs"></datalist>
       <datalist id="listeCategories"></datalist>
       <p class="dlg__error" id="erreurParticipant"></p>
       <div class="dlg__actions">
@@ -385,37 +401,79 @@
     </form>
   </dialog>
 
-  <dialog class="dlg" id="dlgTheme">
-    <form method="dialog" class="dlg__body dlg__body--wide" id="formTheme">
-      <h3 id="dlgThemeTitre">Nouveau thème PDF</h3>
-      <div class="theme-edit">
-        <div class="form-grid">
-          <label class="field field--full"><span>Nom du thème *</span><input class="input" name="nom" required maxlength="100"></label>
-          <label class="field"><span>Couleur principale</span><span class="color"><input type="color" name="couleurPicker"><input class="input" name="couleur" maxlength="7" placeholder="#15291F"></span></label>
-          <label class="field"><span>Logo</span><span class="logo-pick"><button type="button" class="btn btn--ghost btn--sm" id="btnLogo">Choisir…</button><button type="button" class="btn btn--ghost btn--sm" id="btnLogoRetirer">Retirer</button></span></label>
-          <label class="field field--full"><span>Titre PDF</span><input class="input" name="titre" maxlength="200" placeholder="ex : Cross départemental UNSS"></label>
-          <label class="field field--full"><span>Sous-titre</span><input class="input" name="sousTitre" maxlength="200"></label>
-          <label class="field field--full"><span>Pied de page</span><input class="input" name="piedPage" maxlength="200" placeholder="Loopace Chrono"></label>
-          <label class="field"><span>Taille logo (20–200)</span><input class="input" type="number" name="tailleLogo" min="20" max="200"></label>
-          <label class="field"><span>Taille titre (8–48)</span><input class="input" type="number" name="tailleTitre" min="8" max="48"></label>
-          <label class="check field--full"><input type="checkbox" name="afficherEcoles"> Afficher le classement par école / club</label>
+  <dialog class="dlg dlg--modele" id="dlgTheme">
+    <form method="dialog" class="dlg__body" id="formTheme">
+      <div class="modele-tete">
+        <h3 id="dlgThemeTitre">Nouveau modèle PDF</h3>
+        <label class="field modele-tete__nom"><span>Nom du modèle *</span><input class="input" name="nom" required maxlength="100" placeholder="ex : Cross scolaire, Course sur route…"></label>
+      </div>
+      <div class="modele">
+        <!-- Outils : blocs à glisser sur la page (Contenu) ou réglages d'en-tête (Apparence) -->
+        <div class="modele__outils">
+          <div class="seg" role="tablist">
+            <button type="button" class="seg__btn is-on" data-onglet="contenu">Contenu</button>
+            <button type="button" class="seg__btn" data-onglet="apparence">Apparence</button>
+          </div>
+          <div class="modele-onglet" data-panneau="contenu">
+            <section class="boite">
+              <h4>Classements</h4>
+              <p class="meta">Glissez-les sur la page, ou cliquez pour les ajouter.</p>
+              <div class="reserve" data-zone="sections" data-reserve id="reserveSections" role="list" aria-label="Classements disponibles"></div>
+            </section>
+            <section class="boite">
+              <h4>Colonnes</h4>
+              <p class="meta">Glissez-les dans l'en-tête des tableaux, ou cliquez. Vitesse et allure demandent la distance de la course.</p>
+              <div class="reserve reserve--puces" data-zone="colonnes" data-reserve id="reserveColonnes" role="list" aria-label="Colonnes disponibles"></div>
+            </section>
+            <section class="boite" id="regleEcoles">
+              <h4>Écoles et clubs</h4>
+              <p class="meta">Tous les inscrits de l'équipe sont listés ; places et temps se comptent sur les arrivés.</p>
+              <label class="field"><span>L'équipe gagnante</span><select class="input" name="ecoleMode">
+                <option value="places">Plus petit total des places au général</option>
+                <option value="temps">Plus petit total des temps</option>
+                <option value="nombre">La plus représentée (le plus d'inscrits)</option>
+              </select></label>
+              <label class="field field--inline" id="champEcoleNb"><span>Coureurs comptés par équipe : les</span><input class="input" type="number" name="ecoleNb" min="1" max="10"><span>premiers</span></label>
+            </section>
+            <label class="field field--inline"><span>Orientation</span><select class="input" name="paysage"><option value="">Portrait</option><option value="1">Paysage (plus de colonnes)</option></select></label>
+          </div>
+          <div class="modele-onglet form-grid" data-panneau="apparence" hidden>
+            <label class="field"><span>Couleur principale</span><span class="color"><input type="color" name="couleurPicker"><input class="input" name="couleur" maxlength="7" placeholder="#15291F"></span></label>
+            <label class="field"><span>Logo</span><span class="logo-pick"><button type="button" class="btn btn--ghost btn--sm" id="btnLogo">Choisir…</button><button type="button" class="btn btn--ghost btn--sm" id="btnLogoRetirer">Retirer</button></span></label>
+            <label class="field field--full"><span>Titre</span><input class="input" name="titre" maxlength="200" placeholder="ex : Cross départemental UNSS"></label>
+            <label class="field field--full"><span>Sous-titre</span><input class="input" name="sousTitre" maxlength="200"></label>
+            <label class="field field--full"><span>Pied de page</span><input class="input" name="piedPage" maxlength="200" placeholder="Loopace Chrono"></label>
+            <label class="field"><span>Taille logo (20–200)</span><input class="input" type="number" name="tailleLogo" min="20" max="200"></label>
+            <label class="field"><span>Taille titre (8–48)</span><input class="input" type="number" name="tailleTitre" min="8" max="48"></label>
+          </div>
         </div>
-        <div class="preview">
-          <small>Aperçu</small>
-          <div class="preview__page">
-            <div class="preview__head">
+
+        <!-- La page du PDF : on y dépose les classements et les colonnes -->
+        <div class="modele__page">
+          <div class="page-pdf" id="apercuPage">
+            <div class="page-pdf__tete">
               <img id="apercuLogo" alt="" hidden>
               <div><em id="apercuMarque">Loopace Chrono</em><b id="apercuTitre">Nom de la course</b><span id="apercuSous"></span></div>
             </div>
-            <i class="preview__rule" id="apercuTrait"></i>
-            <em class="preview__section" id="apercuSection">Classement individuel</em>
-            <span class="preview__row preview__row--1"></span><span class="preview__row preview__row--2"></span><span class="preview__row preview__row--3"></span><span class="preview__row"></span>
+            <i class="page-pdf__trait" id="apercuTrait"></i>
+            <div class="page-pdf__cols">
+              <span class="page-pdf__label">Colonnes des tableaux</span>
+              <div class="page-pdf__entete">
+                <span class="puce puce--fixe" title="Toujours en premier">#</span>
+                <div class="zone zone--puces" data-zone="colonnes" data-sens="ligne" id="pageColonnes" role="list" aria-label="Colonnes du PDF, dans l'ordre"></div>
+              </div>
+            </div>
+            <div class="zone zone--sections" data-zone="sections" data-sens="colonne" id="pageSections" role="list" aria-label="Classements du PDF, dans l'ordre"></div>
+            <span class="page-pdf__pied" id="apercuPied">Loopace Chrono — Page 1 / 1</span>
           </div>
+          <p class="meta modele__aide">Glissez pour ranger, × ou glisser hors de la page pour retirer. Au clavier : flèches pour déplacer, Suppr pour retirer.</p>
         </div>
       </div>
+      <p class="dlg__error" id="erreurModele"></p>
       <input type="file" id="fichierLogo" accept="image/*" hidden>
       <div class="dlg__actions">
         <button type="button" class="btn btn--ghost btn--danger dlg__left" data-valeur="supprimer" id="btnSupprimerTheme">Supprimer</button>
+        <button type="button" class="btn btn--ghost" data-valeur="dupliquer" id="btnDupliquerTheme"><svg class="ico"><use href="#i-copy"/></svg>Dupliquer</button>
         <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
         <button class="btn" value="ok">Enregistrer</button>
       </div>
@@ -453,7 +511,7 @@
   <dialog class="dlg" id="dlgDupliquer">
     <form method="dialog" class="dlg__body" id="formDupliquer">
       <h3>Dupliquer la course</h3>
-      <p class="meta">La copie reprend tous les réglages (lieu, distance, type, thème PDF, catégories). Les temps ne sont jamais copiés : elle démarre en attente.</p>
+      <p class="meta">La copie reprend tous les réglages (lieu, distance, type, modèle PDF, catégories). Les temps ne sont jamais copiés : elle démarre en attente.</p>
       <div class="form-grid">
         <label class="field field--full"><span>Nom de la nouvelle course *</span><input class="input" name="nom" required maxlength="200"></label>
         <label class="field"><span>Date</span><input class="input" type="date" name="date"></label>
