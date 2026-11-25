@@ -1,7 +1,7 @@
 // Logique métier : départ, arrivées, arrêt, classements individuel, par école et par club.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe, theme } from "./store.js?v=23";
+import { state, course, inscritsDe, theme } from "./store.js?v=24";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");

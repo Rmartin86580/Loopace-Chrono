@@ -25,6 +25,15 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
 
 ## Déroulé d'une course
 
+**Événements** : un cross, une corrida… qui regroupe plusieurs courses (« Nouvelle » → « Un événement »). Ses
+réglages communs (date, lieu, type, catégories, écoles / clubs, modèle PDF, diplômes) valent pour toutes ses
+courses ; chacune garde son nom, son heure, sa distance et ses dossards. Un réglage changé dans une course ne vaut
+que pour elle (✎ dans la liste de l'événement) ; modifier l'événement met à jour les autres. Une course existante
+se range dans un événement depuis sa fiche (champ « Événement »). « Dupliquer » copie l'événement entier pour
+l'édition suivante (participants au choix, jamais les temps) ; « PDF de l'événement » donne une page de garde
+(courses, partants, arrivés, premier) puis les résultats de chaque course, en plus des PDF par course.
+Supprimer un événement supprime ses courses, ou les garde comme courses seules.
+
 1. **Courses** : créer la course et choisir ses **catégories** — saisie libre, ou automatiques selon le barème
    **FFA** (Baby Athlé → Masters M10), **FFTri** (Mini-poussins → Seniors S1-S4 → Masters M1-M10),
    **UNSS** (Benjamins → Seniors) ou **Classes** (PS → Terminale, classe normale pour l'âge), avec en option

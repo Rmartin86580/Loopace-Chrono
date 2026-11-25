@@ -22,7 +22,7 @@ function themeDefaut() {
 }
 
 function etatVide() {
-  return { version: 1, courses: [], inscrits: [], themes: [themeDefaut()] };
+  return { version: 1, evenements: [], courses: [], inscrits: [], themes: [themeDefaut()] };
 }
 
 let db = null;
@@ -57,6 +57,7 @@ async function lireEtat() {
   const lu = await requete("kv", "readonly", (s) => s.get("etat"));
   const e = lu || etatVide();
   if (!e.themes.some((t) => t.defaut)) e.themes.unshift(themeDefaut());
+  if (!Array.isArray(e.evenements)) e.evenements = [];
   return e;
 }
 
@@ -99,6 +100,7 @@ export const reglages = {
 export async function remplacer(nouvelEtat) {
   state = nouvelEtat;
   if (!state.themes?.some((t) => t.defaut)) state.themes = [themeDefaut(), ...(state.themes || [])];
+  if (!Array.isArray(state.evenements)) state.evenements = [];
   await sauver();
 }
 
@@ -116,6 +118,18 @@ export const uid = () => Date.now().toString(36) + Math.random().toString(36).sl
 export const course = (id) => state.courses.find((c) => c.id === id) || null;
 export const inscritsDe = (courseId) => state.inscrits.filter((i) => i.courseId === courseId);
 export const theme = (id) => state.themes.find((t) => t.id === id) || null;
+
+// ── Événements : un cross, une corrida… qui regroupe plusieurs courses ─
+/**
+ * Réglages communs : saisis dans l'événement et repris par chacune de ses courses, sauf celles qui les ont
+ * changés pour elles seules (liste « propres » de la course).
+ */
+export const REGLAGES_COMMUNS = ["date", "lieu", "type", "themeId", "categories", "categoriesSexe", "equipes", "diplomesActifs"];
+export const evenement = (id) => (id && state.evenements.find((e) => e.id === id)) || null;
+export const coursesDe = (evenementId) => state.courses.filter((c) => c.evenementId === evenementId)
+  .sort((a, b) => (a.heure || "99").localeCompare(b.heure || "99") || a.nom.localeCompare(b.nom, "fr", { numeric: true }));
+/** Nom complet d'une course : « Cross du collège — Benjamins » quand elle fait partie d'un événement. */
+export const nomCourse = (c) => { const e = evenement(c?.evenementId); return e ? `${e.nom} — ${c.nom}` : c?.nom || ""; };
 
 export function coursesTriees() {
   return [...state.courses].sort((a, b) =>

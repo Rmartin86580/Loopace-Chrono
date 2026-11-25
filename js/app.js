@@ -1,13 +1,13 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=23";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=23";
-import * as calc from "./calc.js?v=23";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=23";
-import * as excel from "./excel.js?v=23";
-import * as sauvegarde from "./sauvegarde.js?v=23";
-import { genererDiplomes } from "./diplomes.js?v=23";
-import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=23";
+import * as store from "./store.js?v=24";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=24";
+import * as calc from "./calc.js?v=24";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=24";
+import * as excel from "./excel.js?v=24";
+import * as sauvegarde from "./sauvegarde.js?v=24";
+import { genererDiplomes } from "./diplomes.js?v=24";
+import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=24";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -85,7 +85,7 @@ function telecharger(blob, nom) {
 function optionsCourses(select, idChoisi, { vide = "— Choisir une course —" } = {}) {
   const liste = coursesTriees();
   select.innerHTML = `<option value="">${vide}</option>` + liste.map((c) =>
-    `<option value="${c.id}"${c.id === idChoisi ? " selected" : ""}>${esc(c.nom)}${c.date ? " — " + fmtDate(c.date) : ""}</option>`).join("");
+    `<option value="${c.id}"${c.id === idChoisi ? " selected" : ""}>${esc(nomCourse(c))}${c.date ? " — " + fmtDate(c.date) : ""}</option>`).join("");
 }
 
 const ETATS = { "attente": "En attente", "en-cours": "En course", "arretee": "Terminée" };
@@ -128,6 +128,8 @@ document.addEventListener("visibilitychange", gererVeille);
 // COURSES / PARTICIPANTS
 // ══════════════════════════════════════════════════════════════
 let courseSel = null;
+let evenementSel = null;     // événement affiché à droite (à la place d'une course)
+const replies = new Set();   // événements repliés dans la liste
 let recherche = "";
 // Filtres et tri de la liste des participants (remis à zéro quand on change de course)
 let filtres = { statut: "", ecole: "", club: "", categorie: "" };
@@ -164,24 +166,50 @@ function reinitialiserFiltres() {
   tri = null;
 }
 
-function rendreCourses() {
-  if (courseSel && !course(courseSel)) courseSel = null;
-  const liste = coursesTriees();
-  $("#listeCourses").innerHTML = liste.length ? liste.map((c) => {
-    const etat = calc.etatChrono(c).etat;
-    const meta = [fmtDate(c.date), c.heure, c.lieu].filter(Boolean).join(" · ");
-    return `<li><button class="course-item${c.id === courseSel ? " is-on" : ""}" data-id="${c.id}">
+function itemCourse(c, dansEvenement) {
+  const etat = calc.etatChrono(c).etat;
+  const meta = dansEvenement ? [c.heure, c.distance && `${String(c.distance).replace(".", ",")} km`].filter(Boolean).join(" · ") : [fmtDate(c.date), c.heure, c.lieu].filter(Boolean).join(" · ");
+  return `<li><button class="course-item${c.id === courseSel ? " is-on" : ""}" data-id="${c.id}">
       <span class="course-item__name">${esc(c.nom)}</span>
       <span class="course-item__meta">${esc(meta) || "&nbsp;"}</span>
       <span class="course-item__foot"><span>${calc.nbInscrits(c.id)} inscrit(s)</span><span class="chip chip--${etat}">${ETATS[etat]}</span></span>
     </button></li>`;
+}
+
+function rendreCourses() {
+  if (courseSel && !course(courseSel)) courseSel = null;
+  if (evenementSel && !evenement(evenementSel)) evenementSel = null;
+  // Événements et courses seules, mêlés par date ; les courses d'un événement sous son en-tête
+  const entrees = [
+    ...state.evenements.map((e) => ({ date: e.date, nom: e.nom, e })),
+    ...coursesTriees().filter((c) => !evenement(c.evenementId)).map((c) => ({ date: c.date, nom: c.nom, c })),
+  ].sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999") || a.nom.localeCompare(b.nom, "fr", { numeric: true }));
+  $("#listeCourses").innerHTML = entrees.length ? entrees.map(({ e, c }) => {
+    if (c) return itemCourse(c, false);
+    const courses = coursesDe(e.id);
+    const replie = replies.has(e.id) && !courses.some((x) => x.id === courseSel);
+    const nb = courses.reduce((s, x) => s + calc.nbInscrits(x.id), 0);
+    return `<li class="evenement${replie ? " is-replie" : ""}">
+      <div class="evenement-item${e.id === evenementSel ? " is-on" : ""}" data-evenement="${e.id}" role="button" tabindex="0">
+        <button type="button" class="evenement-item__chevron" data-replier="${e.id}" aria-label="Replier ou déplier">▾</button>
+        <span class="evenement-item__name">${esc(e.nom)}</span>
+        <span class="evenement-item__meta">${esc([fmtDate(e.date), `${courses.length} course(s)`, `${nb} inscrit(s)`].filter(Boolean).join(" · "))}</span>
+      </div>
+      <ul class="evenement__courses">${courses.map((x) => itemCourse(x, true)).join("") || `<li class="muted-li">Aucune course : « + Course » dans l'événement.</li>`}</ul>
+    </li>`;
   }).join("") : `<li class="muted-li">Aucune course pour l'instant.${sauvegarde.lireEtat().statut === "aucun" ? ` Vos données ont disparu ? <a href="#admin">Administration → Sauvegarde automatique</a> → « Choisir le dossier » pour les retrouver.` : ""}</li>`;
 
   const c = course(courseSel);
-  $("#videCourse").hidden = !!c;
+  const ev = !c && evenement(evenementSel);
+  $("#videCourse").hidden = !!(c || ev);
   $("#detailCourse").hidden = !c;
+  $("#detailEvenement").hidden = !ev;
+  if (ev) { rendreEvenement(ev); return; }
   if (!c) return;
 
+  const evCourse = evenement(c.evenementId);
+  $("#btnRetourEvenement").hidden = !evCourse;
+  $("#btnRetourEvenement").textContent = evCourse ? `‹ ${evCourse.nom}` : "";
   $("#titreCourse").textContent = c.nom;
   const th = theme(c.themeId);
   $("#metaCourse").textContent = [fmtDate(c.date), c.heure && `départ ${c.heure}`, c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km`, c.type, c.plageDossards && `dossards ${plageTexte(c.plageDossards)}`, th && `modèle « ${th.nom} »`].filter(Boolean).join(" · ");
@@ -224,12 +252,33 @@ function rendreCourses() {
 }
 
 $("#listeCourses").addEventListener("click", (e) => {
+  const replier = e.target.closest("[data-replier]");
+  if (replier) {
+    const id = replier.dataset.replier;
+    if (replies.has(id)) replies.delete(id); else replies.add(id);
+    rendreCourses();
+    return;
+  }
+  const ev = e.target.closest("[data-evenement]");
+  if (ev) { choisirEvenement(ev.dataset.evenement); return; }
   const b = e.target.closest(".course-item");
   if (!b) return;
   if (b.dataset.id !== courseSel) reinitialiserFiltres();
   courseSel = b.dataset.id;
+  evenementSel = null;
   rendreCourses();
 });
+$("#listeCourses").addEventListener("keydown", (e) => {
+  const ev = e.target.closest("[data-evenement]");
+  if (ev && (e.key === "Enter" || e.key === " ") && !e.target.closest("[data-replier]")) { e.preventDefault(); choisirEvenement(ev.dataset.evenement); }
+});
+
+function choisirEvenement(id) {
+  evenementSel = id;
+  courseSel = null;
+  replies.delete(id);
+  rendreCourses();
+}
 
 $("#rechercheParticipant").addEventListener("input", (e) => { recherche = e.target.value; rendreCourses(); });
 $("#filtreStatut").addEventListener("change", (e) => { filtres.statut = e.target.value; rendreCourses(); });
@@ -260,9 +309,33 @@ function lirePlage(de, a) {
 }
 const plageTexte = ([de, a]) => (a == null ? `à partir de ${de}` : `${de} à ${a}`);
 
-async function editerCourse(c) {
+/** Recopie dans la fiche course les réglages communs de l'événement choisi. */
+function reglagesEvenementDansFiche(ev) {
+  const f = $("#formCourse");
+  f.date.value = ev.date || "";
+  f.lieu.value = ev.lieu || "";
+  f.type.value = ev.type || "";
+  f.themeId.value = ev.themeId || "";
+  f.categories.value = ev.categories || "libre";
+  f.categoriesSexe.checked = !!ev.categoriesSexe;
+  f.equipes.value = ev.equipes || "ecole";
+  f.diplomesActifs.checked = !!ev.diplomesActifs;
+  aideCategories();
+}
+
+async function editerCourse(c, { evenementId = null } = {}) {
   const f = $("#formCourse");
   $("#dlgCourseTitre").textContent = c ? "Modifier la course" : "Nouvelle course";
+  const evId = c ? c.evenementId || "" : evenementId || "";
+  f.evenementId.innerHTML = `<option value="">Aucun — course seule</option>` + [...state.evenements].sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+    .map((e) => `<option value="${e.id}">${esc(e.nom)}${e.date ? ` — ${fmtDate(e.date)}` : ""}</option>`).join("");
+  f.evenementId.value = evenement(evId) ? evId : "";
+  $("#aideEvenement").hidden = !f.evenementId.value;
+  f.evenementId.onchange = () => {
+    const ev = evenement(f.evenementId.value);
+    $("#aideEvenement").hidden = !ev;
+    if (ev) reglagesEvenementDansFiche(ev);
+  };
   f.nom.value = c?.nom || "";
   f.date.value = c ? c.date || "" : new Date().toISOString().slice(0, 10);
   f.heure.value = c?.heure || "";
@@ -279,6 +352,7 @@ async function editerCourse(c) {
   f.diplomesActifs.checked = !!c?.diplomesActifs;
   f.equipes.value = c ? calc.equipesDe(c, inscritsDe(c.id)).choix : "ecole";
   aideCategories();
+  if (!c && evenement(evId)) reglagesEvenementDansFiche(evenement(evId)); // nouvelle course d'un événement : ses réglages
 
   if (await ouvrirDialogue($("#dlgCourse")) !== "ok") return;
   const nom = f.nom.value.trim();
@@ -289,13 +363,22 @@ async function editerCourse(c) {
     distance: Number.isFinite(distance) ? distance : null, type: f.type.value.trim(), themeId: f.themeId.value || null,
     plageDossards: lirePlage(f.dossardsDe.value, f.dossardsA.value),
     categories: f.categories.value, categoriesSexe: f.categoriesSexe.checked, equipes: f.equipes.value, diplomesActifs: f.diplomesActifs.checked,
+    evenementId: f.evenementId.value || null,
   };
+  // Dans un événement : les réglages différents de ceux de l'événement ne valent que pour cette course
+  const ev = evenement(valeurs.evenementId);
+  if (ev) {
+    const arrivee = !c || c.evenementId !== ev.id;
+    valeurs.propres = arrivee && c ? [] : REGLAGES_COMMUNS.filter((k) => (valeurs[k] ?? null) !== (ev[k] ?? null));
+    if (arrivee && c) REGLAGES_COMMUNS.forEach((k) => { valeurs[k] = ev[k] ?? null; }); // rangée dans l'événement : elle prend ses réglages
+  } else valeurs.propres = [];
   let cible = c;
   if (c) Object.assign(c, valeurs);
   else {
     cible = { id: uid(), ...valeurs, chrono: { etat: "attente", depart: null, fin: null } };
     state.courses.push(cible);
     courseSel = cible.id;
+    evenementSel = null;
     reinitialiserFiltres();
   }
   // Barème, date (saison) ou séparation F/M ont pu changer : on remet les catégories à jour
@@ -319,7 +402,12 @@ function aideCategories() {
 $("#formCourse").addEventListener("input", (e) => { if (e.target.name === "categories" || e.target.name === "date") aideCategories(); });
 $("#formCourse").addEventListener("change", (e) => { if (e.target.name === "categories" || e.target.name === "date") aideCategories(); });
 
-$("#btnNouvelleCourse").addEventListener("click", () => editerCourse(null));
+$("#btnNouvelleCourse").addEventListener("click", async () => {
+  const r = await demander("Créer", "Une course seule, ou un événement qui regroupe plusieurs courses (un cross avec ses courses par catégorie, une corrida avec plusieurs distances…) ?", { oui: "Un événement", non: "Une course seule" });
+  if (r === "oui") editerEvenement(null);
+  else if (r === "non") editerCourse(null, { evenementId: evenementSel || course(courseSel)?.evenementId || null });
+});
+$("#btnRetourEvenement").addEventListener("click", () => { const c = course(courseSel); if (c?.evenementId) choisirEvenement(c.evenementId); });
 $("#btnModifierCourse").addEventListener("click", () => editerCourse(course(courseSel)));
 
 async function supprimerCourse(id) {
@@ -371,6 +459,8 @@ async function dupliquer(c, inscrits) {
     chrono: { etat: "attente", depart: null, fin: null },
   };
   if (copie.themeId && !theme(copie.themeId)) copie.themeId = null; // thème supprimé depuis l'archivage
+  if (copie.evenementId && !evenement(copie.evenementId)) { copie.evenementId = null; copie.propres = []; } // événement supprimé
+  copie.enAttente = [];
   state.courses.push(copie);
   let n = 0;
   if (f.participants.checked) {
@@ -392,6 +482,152 @@ async function dupliquer(c, inscrits) {
   if (vue !== "courses") location.hash = "#courses"; else rendre();
   toast(`Course « ${copie.nom} » créée` + (n ? ` avec ${n} participant(s)` : "") + "." + (recalculees ? ` ${recalculees} catégorie(s) recalculée(s).` : ""));
 }
+
+// ══════════════════════════════════════════════════════════════
+// ÉVÉNEMENTS : un cross, une corrida… avec plusieurs courses
+// ══════════════════════════════════════════════════════════════
+function rendreEvenement(ev) {
+  const courses = coursesDe(ev.id);
+  const th = theme(ev.themeId);
+  $("#titreEvenement").textContent = ev.nom;
+  $("#metaEvenement").textContent = [fmtDate(ev.date), ev.lieu, ev.type, calc.BAREMES[ev.categories]?.nom, th && `modèle « ${th.nom} »`].filter(Boolean).join(" · ");
+  $("#btnPdfEvenement").disabled = !courses.some((c) => calc.resultats(c.id).individuel.length);
+  $("#tableCoursesEvenement").innerHTML = courses.length ? courses.map((c) => {
+    const etat = calc.etatChrono(c).etat;
+    const propres = (c.propres || []).length ? ` <span class="corrige" title="Réglages propres à cette course : ${esc(c.propres.join(", "))}">✎</span>` : "";
+    return `<tr data-id="${c.id}"><td>${esc(c.heure || "—")}</td><td><b>${esc(c.nom)}</b>${propres}</td><td>${c.distance ? `${String(c.distance).replace(".", ",")} km` : ""}</td>
+      <td class="r">${calc.nbInscrits(c.id)}</td><td>${c.plageDossards ? esc(plageTexte(c.plageDossards)) : ""}</td><td><span class="chip chip--${etat}">${ETATS[etat]}</span></td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="muted c">Ajoutez les courses de l'événement avec « + Course ».</td></tr>`;
+}
+
+$("#tableCoursesEvenement").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr[data-id]");
+  if (!tr) return;
+  reinitialiserFiltres();
+  courseSel = tr.dataset.id;
+  evenementSel = null;
+  rendreCourses();
+});
+
+/** Les courses de l'événement reprennent ses réglages communs, sauf ceux qu'elles ont changés pour elles. */
+function propagerEvenement(ev) {
+  let recalculees = 0;
+  coursesDe(ev.id).forEach((c) => {
+    REGLAGES_COMMUNS.filter((k) => !(c.propres || []).includes(k)).forEach((k) => { c[k] = ev[k] ?? null; });
+    recalculees += calc.appliquerCategories(c.id); // date (saison) ou barème ont pu changer
+  });
+  return recalculees;
+}
+
+async function editerEvenement(ev) {
+  const f = $("#formEvenement");
+  $("#dlgEvenementTitre").textContent = ev ? "Modifier l'événement" : "Nouvel événement";
+  f.nom.value = ev?.nom || "";
+  f.date.value = ev ? ev.date || "" : new Date().toISOString().slice(0, 10);
+  f.type.value = ev?.type || "";
+  f.lieu.value = ev?.lieu || "";
+  const bareme = ev ? ev.categories || "libre" : "ffa";
+  f.categories.innerHTML = Object.entries(calc.BAREMES).map(([cle, b]) => `<option value="${cle}"${cle === bareme ? " selected" : ""}>${b.nom}</option>`).join("");
+  f.categoriesSexe.checked = !!ev?.categoriesSexe;
+  f.equipes.value = ev?.equipes || "ecole";
+  optionsThemes(f.themeId, ev ? ev.themeId : THEME_DEFAUT_ID);
+  f.diplomesActifs.checked = !!ev?.diplomesActifs;
+
+  if (await ouvrirDialogue($("#dlgEvenement")) !== "ok" || !f.nom.value.trim()) return;
+  const valeurs = {
+    nom: f.nom.value.trim(), date: f.date.value || null, type: f.type.value.trim(), lieu: f.lieu.value.trim(),
+    categories: f.categories.value, categoriesSexe: f.categoriesSexe.checked, equipes: f.equipes.value,
+    themeId: f.themeId.value || null, diplomesActifs: f.diplomesActifs.checked,
+  };
+  let cible = ev;
+  if (ev) Object.assign(ev, valeurs);
+  else {
+    cible = { id: uid(), ...valeurs };
+    state.evenements.push(cible);
+  }
+  const recalculees = propagerEvenement(cible);
+  evenementSel = cible.id;
+  courseSel = null;
+  await store.sauver();
+  if (vue !== "courses") location.hash = "#courses"; else rendre();
+  toast((ev ? "Événement modifié" : "Événement créé : ajoutez ses courses avec « + Course »") + (recalculees ? `. ${recalculees} catégorie(s) recalculée(s).` : "."));
+}
+
+$("#btnModifierEvenement").addEventListener("click", () => editerEvenement(evenement(evenementSel)));
+$("#btnAjouterCourseEvenement").addEventListener("click", () => editerCourse(null, { evenementId: evenementSel }));
+
+$("#btnSupprimerEvenement").addEventListener("click", async () => {
+  const ev = evenement(evenementSel);
+  if (!ev) return;
+  const courses = coursesDe(ev.id);
+  const enCours = courses.some((c) => calc.etatChrono(c).etat === "en-cours");
+  const r = courses.length
+    ? await demander("Supprimer l'événement", `Supprimer « ${ev.nom} » ?\n\nSes ${courses.length} course(s) peuvent être supprimées avec lui (participants et temps compris), ou gardées comme courses seules.` + (enCours ? "\n\nAttention : une de ses courses est en cours." : ""), { oui: "Supprimer aussi les courses", non: "Garder les courses", danger: true })
+    : (await confirmer("Supprimer l'événement", `Supprimer « ${ev.nom} » ?`, { oui: "Supprimer", danger: true })) ? "oui" : "annuler";
+  if (r === "annuler") return;
+  for (const c of courses) {
+    if (r === "oui") await supprimerCourse(c.id);
+    else { c.evenementId = null; c.propres = []; }
+  }
+  state.evenements = state.evenements.filter((x) => x.id !== ev.id);
+  evenementSel = null;
+  await store.sauver();
+  rendre();
+  toast(r === "oui" ? "Événement et courses supprimés." : "Événement supprimé, ses courses sont gardées.");
+});
+
+$("#btnDupliquerEvenement").addEventListener("click", async () => {
+  const ev = evenement(evenementSel);
+  if (!ev) return;
+  const courses = coursesDe(ev.id);
+  const nb = courses.reduce((s, c) => s + calc.nbInscrits(c.id), 0);
+  const f = $("#formDupliquerEvenement");
+  f.nom.value = `${ev.nom} (copie)`;
+  f.date.value = ev.date || "";
+  f.participants.checked = false;
+  f.participants.disabled = nb === 0;
+  f.dossards.checked = true;
+  f.bulletins.checked = false;
+  $("#dupliquerEvNb").textContent = `${nb} inscrit(s)`;
+  const options = () => $("#dupliquerEvOptions").setAttribute("aria-disabled", String(!f.participants.checked));
+  options();
+  f.participants.onchange = options;
+  if (await ouvrirDialogue($("#dlgDupliquerEvenement")) !== "ok" || !f.nom.value.trim()) return;
+
+  const copie = { ...structuredClone(ev), id: uid(), nom: f.nom.value.trim(), date: f.date.value || null };
+  state.evenements.push(copie);
+  let n = 0;
+  courses.forEach((c) => {
+    const cc = { ...structuredClone(c), id: uid(), evenementId: copie.id, chrono: { etat: "attente", depart: null, fin: null }, enAttente: [] };
+    state.courses.push(cc);
+    if (!f.participants.checked) return;
+    inscritsDe(c.id).forEach((i) => {
+      state.inscrits.push({
+        ...structuredClone(i), id: uid(), courseId: cc.id, dossard: f.dossards.checked ? i.dossard : null,
+        bulletin: f.bulletins.checked ? i.bulletin : false, depart: null, arrivee: null, statut: null, motif: "", corrige: false,
+      });
+      n++;
+    });
+  });
+  const recalculees = propagerEvenement(copie);
+  evenementSel = copie.id;
+  await store.sauver();
+  rendre();
+  toast(`Événement « ${copie.nom} » créé avec ${courses.length} course(s)` + (n ? ` et ${n} participant(s)` : "") + "." + (recalculees ? ` ${recalculees} catégorie(s) recalculée(s).` : ""));
+});
+
+$("#btnPdfEvenement").addEventListener("click", () => {
+  const ev = evenement(evenementSel);
+  if (!ev) return;
+  const courses = coursesDe(ev.id).map((c) => ({ course: c, heure: c.heure, theme: theme(c.themeId), res: calc.resultats(c.id) }))
+    .filter((x) => x.res.individuel.length)
+    .map((x) => ({ ...x, course: { ...x.course, nom: nomCourse(x.course), nomCourt: x.course.nom } })); // en-têtes : nom complet
+  try {
+    const blob = genererPdfEvenement({ evenement: ev, theme: theme(ev.themeId), courses });
+    telecharger(blob, nomFichier("Resultats_", ev.nom, "pdf"));
+    toast(`PDF de l'événement : ${courses.length} course(s).`);
+  } catch (err) { toast(`Erreur lors de la génération du PDF : ${err.message}`, "err"); }
+});
 
 // ── Participants ─────────────────────────────────────────────
 function dossardPris(courseId, dossard, saufId) {
@@ -1022,7 +1258,7 @@ $("#resultatsCourse").addEventListener("change", (e) => { resultatsSel = e.targe
 $$(".seg__btn[data-seg]").forEach((b) => b.addEventListener("click", () => { segment = b.dataset.seg; rendreResultats(); }));
 
 function pdfCourse(c) {
-  return genererPdf({ course: c, theme: theme(c.themeId), res: calc.resultats(c.id) });
+  return genererPdf({ course: { ...c, nom: nomCourse(c) }, theme: theme(c.themeId), res: calc.resultats(c.id) });
 }
 
 $("#btnPdf").addEventListener("click", () => {
@@ -2084,7 +2320,7 @@ $("#btnSauvegarde").addEventListener("click", async () => {
 
 /** Remplace les données de ce poste par une sauvegarde ; ses archives s'ajoutent à celles déjà présentes. */
 async function appliquerSauvegarde(data) {
-  await store.remplacer({ version: 1, courses: data.courses, inscrits: data.inscrits, themes: data.themes || [], baremes: data.baremes || {}, baremesVersion: data.baremesVersion });
+  await store.remplacer({ version: 1, evenements: data.evenements || [], courses: data.courses, inscrits: data.inscrits, themes: data.themes || [], baremes: data.baremes || {}, baremesVersion: data.baremesVersion });
   for (const { pdf, ...a } of Array.isArray(data.archives) ? data.archives : []) {
     if (a.id && pdf) await store.archives.ajouter({ ...a, blob: await texteEnBlob(pdf) });
   }

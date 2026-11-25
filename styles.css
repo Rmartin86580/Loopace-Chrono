@@ -298,6 +298,26 @@ select.input { cursor: pointer; }
 .course-item__foot { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .35rem; font-size: .78rem; color: var(--faint); }
 .muted-li { color: var(--faint); font-size: .88rem; padding: .5rem 0; list-style: none; }
 
+/* Événements : un en-tête qui regroupe ses courses */
+.evenement { display: flex; flex-direction: column; gap: .35rem; }
+.evenement-item {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .5rem; width: 100%; padding: .75rem .9rem;
+  border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface); color: var(--text);
+  text-align: left; font: inherit; cursor: pointer;
+}
+.evenement-item:hover { border-color: rgba(var(--accent-rgb), .45); }
+.evenement-item.is-on { border-color: var(--accent); background: rgba(var(--accent-rgb), .08); }
+.evenement-item__chevron { grid-row: span 2; align-self: center; width: 1.4rem; height: 1.4rem; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; transition: transform .2s; }
+.evenement.is-replie .evenement-item__chevron { transform: rotate(-90deg); }
+.evenement-item__name { font-weight: 800; }
+.evenement-item__meta { font-size: .78rem; color: var(--muted); }
+.evenement__courses { list-style: none; margin: 0; padding: 0 0 0 1rem; display: flex; flex-direction: column; gap: .35rem; border-left: 2px solid var(--line); margin-left: .9rem; }
+.evenement.is-replie .evenement__courses { display: none; }
+.evenement__courses .course-item { padding: .55rem .8rem; border-radius: 11px; }
+.surtitre { margin: 0 0 .1rem; font-size: .74rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
+.surtitre--lien { padding: 0; border: 0; background: none; font-family: inherit; cursor: pointer; }
+.surtitre--lien:hover { text-decoration: underline; }
+
 /* ===== Tableaux ===== */
 .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 14px; }
 .table-wrap--tall { max-height: 58vh; }

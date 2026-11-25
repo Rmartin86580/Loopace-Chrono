@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=23">
+  <link rel="stylesheet" href="styles.css?v=24">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
     // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
@@ -29,7 +29,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=23"></script>
+  <script type="module" src="js/app.js?v=24"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -90,9 +90,36 @@
             <img class="empty__logo media__light" src="assets/chrono-logo-clair.png" alt="">
             <p>Créez une course puis inscrivez les participants, à la main ou depuis un fichier Excel.</p>
           </div>
+          <div id="detailEvenement" hidden>
+            <div class="card__head card__head--wrap">
+              <div>
+                <p class="surtitre">Événement</p>
+                <h2 id="titreEvenement"></h2>
+                <p class="meta" id="metaEvenement"></p>
+              </div>
+              <div class="actions">
+                <button class="btn btn--ghost btn--sm" id="btnModifierEvenement"><svg class="ico"><use href="#i-edit"/></svg>Modifier</button>
+                <button class="btn btn--ghost btn--sm" id="btnDupliquerEvenement"><svg class="ico"><use href="#i-copy"/></svg>Dupliquer</button>
+                <button class="btn btn--ghost btn--sm btn--danger" id="btnSupprimerEvenement"><svg class="ico"><use href="#i-trash"/></svg>Supprimer</button>
+              </div>
+            </div>
+            <div class="toolbar">
+              <div class="actions">
+                <button class="btn btn--sm" id="btnAjouterCourseEvenement"><svg class="ico"><use href="#i-plus"/></svg>Course</button>
+                <button class="btn btn--ghost btn--sm" id="btnPdfEvenement"><svg class="ico"><use href="#i-pdf"/></svg>PDF de l'événement</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="table table--hover table--nowrap">
+                <thead><tr><th>Heure</th><th>Course</th><th>Distance</th><th class="r">Inscrits</th><th>Dossards</th><th>État</th></tr></thead>
+                <tbody id="tableCoursesEvenement"></tbody>
+              </table>
+            </div>
+          </div>
           <div id="detailCourse" hidden>
             <div class="card__head card__head--wrap">
               <div>
+                <button type="button" class="surtitre surtitre--lien" id="btnRetourEvenement" hidden></button>
                 <h2 id="titreCourse"></h2>
                 <p class="meta" id="metaCourse"></p>
               </div>
@@ -406,6 +433,8 @@
       <fieldset class="form-section">
         <legend>La course</legend>
         <div class="form-grid">
+          <label class="field field--full"><span>Événement</span><select class="input" name="evenementId"></select></label>
+          <p class="meta field--full" id="aideEvenement" hidden>Date, lieu, type, catégories, participants, modèle PDF et diplômes viennent de l'événement. Un réglage changé ici ne vaut que pour cette course.</p>
           <label class="field field--full"><span>Nom *</span><input class="input" name="nom" required maxlength="200" placeholder="ex : Cross des écoles — Benjamins"></label>
           <label class="field"><span>Date</span><input class="input" type="date" name="date"></label>
           <label class="field"><span>Heure de départ</span><input class="input" type="time" name="heure"></label>
@@ -678,6 +707,52 @@
         <button type="button" class="btn" id="btnEnregistrerBareme"><svg class="ico"><use href="#i-check"/></svg>Enregistrer et recalculer</button>
       </div>
     </div>
+  </dialog>
+
+  <dialog class="dlg" id="dlgEvenement">
+    <form method="dialog" class="dlg__body" id="formEvenement">
+      <h3 id="dlgEvenementTitre">Nouvel événement</h3>
+      <p class="meta">Un événement (un cross, une corrida…) regroupe plusieurs courses. Ces réglages valent pour toutes ses courses ; chacune garde son nom, son heure, sa distance et ses dossards.</p>
+      <div class="form-grid">
+          <label class="field field--full"><span>Nom *</span><input class="input" name="nom" required maxlength="200" placeholder="ex : Cross du collège Vauban"></label>
+          <label class="field"><span>Date</span><input class="input" type="date" name="date"></label>
+          <label class="field"><span>Type</span><input class="input" name="type" list="typesCourse" placeholder="Route, Cross, Trail…"></label>
+          <label class="field field--full"><span>Lieu</span><input class="input" name="lieu" maxlength="200"></label>
+          <label class="field"><span>Catégories</span><select class="input" name="categories"></select></label>
+          <label class="check"><input type="checkbox" name="categoriesSexe"> Séparer filles et garçons</label>
+          <label class="field"><span>Les participants viennent</span><select class="input" name="equipes">
+            <option value="ecole">D'écoles</option>
+            <option value="club">De clubs</option>
+            <option value="les2">D'écoles et de clubs</option>
+          </select></label>
+          <label class="field"><span>Modèle PDF</span><select class="input" name="themeId"></select></label>
+          <label class="check field--full"><input type="checkbox" name="diplomesActifs"> Diplômes (bouton « Diplômes » dans l'onglet Résultats)</label>
+      </div>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlgDupliquerEvenement">
+    <form method="dialog" class="dlg__body" id="formDupliquerEvenement">
+      <h3>Dupliquer l'événement</h3>
+      <p class="meta">Toutes les courses sont copiées avec leurs réglages, heures et plages de dossards. Les temps ne sont jamais copiés.</p>
+      <div class="form-grid">
+        <label class="field field--full"><span>Nom du nouvel événement *</span><input class="input" name="nom" required maxlength="200"></label>
+        <label class="field"><span>Date</span><input class="input" type="date" name="date"></label>
+        <label class="check field--full"><input type="checkbox" name="participants"> <span>Copier les participants (<span id="dupliquerEvNb"></span>)</span></label>
+        <div class="dup-options field--full" id="dupliquerEvOptions">
+          <label class="check"><input type="checkbox" name="dossards"> Garder leurs dossards</label>
+          <label class="check"><input type="checkbox" name="bulletins"> Garder l'état des bulletins (sinon tous à revalider)</label>
+        </div>
+      </div>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok">Dupliquer</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog class="dlg" id="dlgCorrection">

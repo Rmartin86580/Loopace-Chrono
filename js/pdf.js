@@ -80,15 +80,95 @@ const fondPodium = (rang) => ({ 1: OR, 2: ARGENT, 3: BRONZE })[rang] || "#FFFFFF
  * @param {object} p.res       résultat de calc.resultats()
  * @returns {Blob}
  */
-export function genererPdf({ course, theme, res }) {
+function verifierLib() {
   if (!window.jspdf?.jsPDF) throw new Error("La bibliothèque PDF n'est pas chargée (connexion nécessaire au premier lancement).");
+}
+
+export function genererPdf({ course, theme, res }) {
+  verifierLib();
+  const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: theme?.paysage ? "landscape" : "portrait" });
+  dessinerCourse(doc, { course, theme, res });
+  numeroter(doc, theme?.piedPage);
+  return doc.output("blob");
+}
+
+/**
+ * PDF de l'événement : une page de garde, puis chaque course comme dans son propre PDF, dans l'ordre du programme.
+ * @param {object} p
+ * @param {object} p.evenement     l'événement (nom, date, lieu)
+ * @param {object|null} p.theme    modèle PDF de l'événement (page de garde, pied de page)
+ * @param {object[]} p.courses     [{ course, theme, res, heure }] dans l'ordre voulu
+ */
+export function genererPdfEvenement({ evenement, theme, courses }) {
+  verifierLib();
+  // Une seule orientation pour tout le document : paysage dès qu'une course la demande
+  const paysage = courses.some((x) => x.theme?.paysage);
+  const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: paysage ? "landscape" : "portrait" });
+  pageDeGarde(doc, evenement, theme || {}, courses);
+  courses.forEach((x) => dessinerCourse(doc, x, true));
+  numeroter(doc, theme?.piedPage || evenement.nom);
+  return doc.output("blob");
+}
+
+function pageDeGarde(doc, ev, t, courses) {
+  const couleur = hexValide(t.couleur) ? t.couleur : "#15291F";
+  const L = doc.internal.pageSize.getWidth();
+  let y = MARGE + 10;
+  if (t.logo) {
+    try {
+      const p = doc.getImageProperties(t.logo);
+      const r = Math.min(90 / p.width, 90 / p.height);
+      doc.addImage(t.logo, (L - p.width * r) / 2, y, p.width * r, p.height * r);
+      y += p.height * r + 16;
+    } catch { /* logo illisible : ignoré */ }
+  }
+  if (t.titre?.trim()) {
+    doc.setFont("helvetica", "normal").setFontSize(12).setTextColor("#616161").text(t.titre.trim(), L / 2, y + 12, { align: "center" });
+    y += 26;
+  }
+  doc.setFont("helvetica", "bold").setFontSize(24).setTextColor(couleur).text(ev.nom, L / 2, y + 24, { align: "center", maxWidth: L - 2 * MARGE });
+  y += 44;
+  const details = [ev.date && ev.date.split("-").reverse().join("/"), ev.lieu].filter(Boolean).join("  ·  ");
+  if (details) { doc.setFont("helvetica", "normal").setFontSize(12).setTextColor("#424242").text(details, L / 2, y, { align: "center" }); y += 14; }
+  doc.setDrawColor(couleur).setLineWidth(1).line(MARGE, y + 8, L - MARGE, y + 8);
+
+  doc.autoTable({
+    startY: y + 24,
+    margin: { left: MARGE, right: MARGE },
+    theme: "plain",
+    styles: { font: "helvetica", fontSize: 10, cellPadding: 5, textColor: "#212121", lineColor: "#E0E0E0", lineWidth: { bottom: 0.5 } },
+    headStyles: { fillColor: ENTETE, fontStyle: "bold", lineWidth: 0 },
+    head: [["Heure", "Course", "Distance", "Partants", "Arrivés", "Premier"]],
+    body: courses.map(({ course, res, heure }) => {
+      const premier = res.individuel.find((l) => l.position === "1");
+      return [heure || "", course.nomCourt || course.nom, Number(course.distance) > 0 ? `${String(course.distance).replace(".", ",")} km` : "",
+        String(res.individuel.length), String(res.nbClasses), premier ? `${premier.nom.toUpperCase()} ${premier.prenom} (${premier.temps})` : "—"];
+    }),
+  });
+}
+
+/** Pied de page « … — Page p / n » sur toutes les pages du document. */
+function numeroter(doc, texte) {
+  const pied = (texte?.trim() || "Loopace Chrono") + "  —  Page ";
+  const n = doc.getNumberOfPages();
+  for (let p = 1; p <= n; p++) {
+    doc.setPage(p);
+    const L = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    doc.setFont("helvetica", "normal").setFontSize(8).setTextColor("#757575");
+    doc.text(`${pied}${p} / ${n}`, L / 2, H - MARGE / 2 - 4, { align: "center" });
+  }
+}
+
+/** Classements d'une course, à partir de la page en cours (ou d'une nouvelle page), en-tête repris sur chaque page. */
+function dessinerCourse(doc, { course, theme, res }, nouvellePage = false) {
+  if (nouvellePage) doc.addPage();
+  const debut = doc.getNumberOfPages();
   const t = theme || {};
   const couleur = hexValide(t.couleur) ? t.couleur : "#15291F";
   const tailleLogo = borne(t.tailleLogo, 20, 200, 60);
   const tailleTitre = borne(t.tailleTitre, 8, 48, 16);
-  const pied = (t.piedPage?.trim() || "Loopace Chrono") + "  —  Page ";
 
-  const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: t.paysage ? "landscape" : "portrait" });
   const L = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
 
@@ -287,16 +367,13 @@ export function genererPdf({ course, theme, res }) {
   };
   sectionsDe(t).forEach((cle) => SECTIONS[cle]());
 
-  // ── En-tête des pages suivantes et pied de page ────────────
-  const n = doc.getNumberOfPages();
-  for (let p = 1; p <= n; p++) {
+  // ── En-tête repris sur les pages suivantes de la course ────
+  const fin = doc.getNumberOfPages();
+  for (let p = debut + 1; p <= fin; p++) {
     doc.setPage(p);
-    if (p > 1) entete();
-    doc.setFont("helvetica", "normal").setFontSize(8).setTextColor("#757575");
-    doc.text(`${pied}${p} / ${n}`, L / 2, H - MARGE / 2 - 4, { align: "center" });
+    entete();
   }
-
-  return doc.output("blob");
+  doc.setPage(fin);
 }
 
 export function nomFichier(prefixe, nomCourse, ext) {
