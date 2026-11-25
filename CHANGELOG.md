@@ -8,11 +8,32 @@ Les mises à jour arrivent toutes seules : il suffit de recharger la page, ou de
 
 ---
 
-## Version 20 — 25 novembre 2026 · Nouveautés dans l'application
+## Version 22 — 25 novembre 2026 · Export FFA, diplômes et nouvelle administration
 
-- Ce journal des modifications se lit maintenant dans l'application : lien « version · nouveautés » en bas
-  de chaque page.
-- Après une mise à jour, un message l'annonce une fois, avec un bouton « Voir les nouveautés ».
+### Export FFA
+- Nouveau bouton **« Export FFA »** dans l'onglet Résultats : un fichier Excel au format de la réglementation
+  FFA hors stade, à envoyer à la commission départementale (place, dossard, nom, prénom, sexe, année,
+  catégorie en code FFA, place dans la catégorie, nationalité, club, département, licence, temps). Les
+  abandons suivent les arrivés, et une feuille « Épreuve » résume la course.
+- Deux nouveaux champs dans la fiche participant et l'import Excel : **Nationalité** (FRA si vide) et
+  **Département** du club. Ils n'apparaissent que pour les courses en catégories FFA ou avec des clubs, et
+  peuvent aussi être ajoutés en colonnes dans le PDF.
+
+### Diplômes
+- Option à cocher dans la fiche course : un bouton **« Diplômes »** apparaît alors dans l'onglet Résultats.
+- Un diplôme par coureur en A5, deux par feuille A4 à découper, aux couleurs et au logo du modèle PDF : nom,
+  école ou club, course, place, place dans la catégorie, temps, et une médaille pour les podiums.
+- Au choix : tous les arrivés, les 3 premiers au général et de chaque catégorie, ou les N premiers, avec en
+  option un diplôme « pour sa participation » pour ceux qui n'ont pas fini.
+- Ordre au choix (classement, école ou club, catégorie), titre et signature personnalisables.
+
+### Administration réorganisée
+- Un bandeau en haut affiche l'état de la sauvegarde automatique, la protection des données et la version.
+- Un menu à gauche range les réglages en rubriques : Sauvegarde, Modèles PDF, Catégories, Son, Import Excel.
+
+### Nouveautés dans l'application
+- Ce journal se lit dans l'application, avec le lien « version · nouveautés » en bas de chaque page.
+- Après une mise à jour, un message l'annonce une fois.
 
 ---
 
