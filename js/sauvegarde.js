@@ -4,12 +4,13 @@
 // « Historique » garde des copies datées (départ, fin de course, archivage, et une par jour d'utilisation).
 // Les fichiers ont le format de « Exporter une sauvegarde » : le bouton « Restaurer » les relit.
 
-import * as store from "./store.js?v=19";
-import { state } from "./store.js?v=19";
+import * as store from "./store.js?v=20";
+import { state } from "./store.js?v=20";
 
-export const DERNIERE = "Loopace_Chrono_derniere.json";
+// La version de test a ses propres fichiers : même dans le même dossier, elle ne touche pas à ceux de la stable
+const PREFIXE = store.TEST ? "Loopace_Chrono_TEST_" : "Loopace_Chrono_";
+export const DERNIERE = `${PREFIXE}derniere.json`;
 const HISTORIQUE = "Historique";
-const PREFIXE = "Loopace_Chrono_";
 const GARDER = 30;     // copies datées conservées
 const DELAI = 3000;    // une écriture au plus toutes les 3 s pendant une course
 const CLE = "dossierSauvegarde";
@@ -83,7 +84,7 @@ export const autoriser = () => (dossier ? verifier(true) : Promise.resolve(false
 
 /** Choix du dossier, sur un clic. Renvoie le dossier et la sauvegarde qu'il contient déjà, s'il y en a une. */
 export async function choisir() {
-  const rep = await window.showDirectoryPicker({ id: "loopace-chrono", mode: "readwrite", startIn: "documents" });
+  const rep = await window.showDirectoryPicker({ id: store.BASE, mode: "readwrite", startIn: "documents" });
   let texte = null;
   let existante = null;
   try {
@@ -152,7 +153,7 @@ async function ecrire() {
     const hist = await dossier.getDirectoryHandle(HISTORIQUE, { create: true });
     const noms = [];
     for await (const [nom, h] of hist.entries()) {
-      if (h.kind === "file" && nom.startsWith(PREFIXE) && nom.endsWith(".json")) noms.push(nom);
+      if (h.kind === "file" && nom.startsWith(PREFIXE) && /^\d{4}-/.test(nom.slice(PREFIXE.length)) && nom.endsWith(".json")) noms.push(nom);
     }
     const nom = `${PREFIXE}${horodatage(new Date())}.json`;
     if (avecCopie || !noms.some((n) => n.startsWith(nom.slice(0, PREFIXE.length + 10)))) { // copie du jour

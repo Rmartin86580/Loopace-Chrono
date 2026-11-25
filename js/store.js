@@ -2,9 +2,15 @@
 // L'état complet est un seul objet en mémoire, réécrit à chaque modification ;
 // les PDF archivés sont rangés à part. Les autres onglets (et l'écran public) sont prévenus par BroadcastChannel.
 
-const DB_NAME = "loopace-chrono";
+// Version de test (site « Loopace-Chrono-Test ») : données à part. Les deux sites ont la même adresse
+// (rmartin86580.github.io) et le navigateur range les données par adresse : sans ce nom distinct,
+// la version de test lirait et modifierait les courses de la version stable.
+export const TEST = /chrono-test/i.test(location.pathname);
+export const BASE = TEST ? "loopace-chrono-test" : "loopace-chrono";
+
+const DB_NAME = BASE;
 const DB_VERSION = 1;
-const CANAL = "loopace-chrono";
+const CANAL = BASE;
 
 export const THEME_DEFAUT_ID = "defaut";
 

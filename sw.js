@@ -1,11 +1,15 @@
 // Service worker : garde l'application et ses bibliothèques en cache pour chronométrer sans réseau.
 // Fichiers du site : réseau d'abord (mises à jour), cache si hors ligne. Bibliothèques CDN (versions figées) : cache d'abord.
 
-const CACHE = "loopace-chrono-v19";
+// La version de test (site « Loopace-Chrono-Test ») partage l'adresse de la stable : chacune garde son propre cache
+const TEST = /chrono-test/i.test(self.location.pathname);
+const VERSION = "loopace-chrono-v20"; // augmenté par outils/nouvelle-version.py
+const CACHE = TEST ? VERSION.replace("chrono", "chrono-test") : VERSION;
+const MIEN = (k) => (TEST ? k.startsWith("loopace-chrono-test-v") : k.startsWith("loopace-chrono-v"));
 const FICHIERS = [
-  "./", "index.html", "ecran.html", "styles.css?v=19", "ecran.css?v=19",
-  "js/app.js?v=19", "js/ecran.js?v=19", "js/store.js?v=19", "js/calc.js?v=19", "js/excel.js?v=19", "js/pdf.js?v=19", "js/sauvegarde.js?v=19",
-  "manifest.webmanifest", "baremes.json",
+  "./", "index.html", "ecran.html", "styles.css?v=20", "ecran.css?v=20",
+  "js/app.js?v=20", "js/ecran.js?v=20", "js/store.js?v=20", "js/calc.js?v=20", "js/excel.js?v=20", "js/pdf.js?v=20", "js/sauvegarde.js?v=20",
+  "manifest.webmanifest", "manifest-test.webmanifest", "baremes.json", "CHANGELOG.md",
   "assets/loopace-logo-clair.png", "assets/loopace-logo-sombre.png",
   "assets/chrono-app-32.png", "assets/chrono-app-180.png", "assets/chrono-app-192.png", "assets/chrono-app-512.png", "assets/chrono-app-maskable-512.png",
   "assets/chrono-logo-sombre.png", "assets/chrono-logo-clair.png",
@@ -19,7 +23,7 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((cles) => Promise.all(cles.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((cles) => Promise.all(cles.filter((k) => k !== CACHE && MIEN(k)).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener("fetch", (e) => {

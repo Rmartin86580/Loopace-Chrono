@@ -1,28 +1,35 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=19";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=19";
-import * as calc from "./calc.js?v=19";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=19";
-import * as excel from "./excel.js?v=19";
-import * as sauvegarde from "./sauvegarde.js?v=19";
-import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=19";
+import * as store from "./store.js?v=20";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=20";
+import * as calc from "./calc.js?v=20";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=20";
+import * as excel from "./excel.js?v=20";
+import * as sauvegarde from "./sauvegarde.js?v=20";
+import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=20";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 /** Pour comparer des noms : sans accents, majuscules, espaces ni tirets superflus. */
 const normaliser = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[\s'-]+/g, " ").trim();
-const CLE_COURSE_CHRONO = "loopace-chrono-course";
+const CLE_COURSE_CHRONO = `${store.BASE}-course`;
+const VERSION = new URL(import.meta.url).searchParams.get("v") || "";
 
 // ── Petits outils d'interface ────────────────────────────────
-function toast(message, type = "ok") {
+function toast(message, type = "ok", action = null) {
   const el = document.createElement("div");
   el.className = `toast toast--${type}`;
   el.textContent = message;
+  if (action) {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "toast__action", textContent: action.texte });
+    b.addEventListener("click", () => { el.remove(); action.fn(); });
+    el.append(b);
+  }
   $("#toasts").append(el);
-  setTimeout(() => el.classList.add("is-out"), 3800);
-  setTimeout(() => el.remove(), 4300);
+  const duree = action ? 9000 : 3800;
+  setTimeout(() => el.classList.add("is-out"), duree);
+  setTimeout(() => el.remove(), duree + 500);
 }
 
 /** Question à deux réponses : renvoie « oui », « non » ou « annuler » (Échap). */
@@ -1289,6 +1296,70 @@ $("#etatSauvegarde").addEventListener("click", () => {
   else location.hash = "#admin";
 });
 sauvegarde.onEtat(afficherSauvegarde);
+
+// ── Nouveautés : le journal des modifications (CHANGELOG.md) affiché dans l'appli ─
+/** Petit rendu Markdown du journal : titres, listes sur deux niveaux, gras, italique, liens, séparateurs. */
+function markdownEnHtml(md) {
+  const enLigne = (t) => esc(t)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>").replace(/`(.+?)`/g, "<code>$1</code>")
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  const blocs = [];
+  let liste = null;
+  let para = null;
+  for (const brut of md.replace(/\r/g, "").split("\n")) {
+    const ligne = brut.trimEnd();
+    let m;
+    if (!ligne.trim()) { liste = para = null; continue; }
+    if ((m = ligne.match(/^(#{1,3}) (.*)$/))) { liste = para = null; blocs.push({ type: "h", n: m[1].length, texte: m[2] }); continue; }
+    if (/^-{3,}$/.test(ligne)) { liste = para = null; blocs.push({ type: "hr" }); continue; }
+    if ((m = ligne.match(/^(\s*)- (.*)$/))) {
+      para = null;
+      if (!liste) blocs.push(liste = { type: "ul", items: [] });
+      if (m[1].length >= 2 && liste.items.length) liste.items.at(-1).sous.push(m[2]);
+      else liste.items.push({ texte: m[2], sous: [] });
+      continue;
+    }
+    if (liste && /^\s/.test(brut)) { // suite d'un élément de liste sur la ligne suivante
+      const it = liste.items.at(-1);
+      if (it.sous.length) it.sous[it.sous.length - 1] += " " + ligne.trim();
+      else it.texte += " " + ligne.trim();
+      continue;
+    }
+    if (para) { para.texte += " " + ligne.trim(); continue; }
+    liste = null;
+    blocs.push(para = { type: "p", texte: ligne.trim() });
+  }
+  return blocs.map((b) => {
+    if (b.type === "h") return b.n === 1 ? "" : `<h${b.n + 2}>${enLigne(b.texte)}</h${b.n + 2}>`; // le titre du fichier est celui de la fenêtre
+    if (b.type === "hr") return "<hr>";
+    if (b.type === "p") return `<p>${enLigne(b.texte)}</p>`;
+    return `<ul>${b.items.map((it) => `<li>${enLigne(it.texte)}${it.sous.length ? `<ul>${it.sous.map((s) => `<li>${enLigne(s)}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>`;
+  }).join("");
+}
+
+async function afficherNouveautes() {
+  const zone = $("#changelog");
+  ouvrirDialogue($("#dlgNouveautes"));
+  try {
+    const r = await fetch("CHANGELOG.md", { cache: "no-cache" });
+    if (!r.ok) throw new Error();
+    zone.innerHTML = markdownEnHtml(await r.text());
+  } catch {
+    zone.innerHTML = `<p>Le journal des modifications n'est pas disponible hors ligne pour l'instant : ouvrez l'application une fois avec du réseau.</p>`;
+  }
+  $("#dlgNouveautes").scrollTop = 0;
+}
+
+$("#numeroVersion").textContent = VERSION;
+$("#lienNouveautes").addEventListener("click", (e) => { e.preventDefault(); afficherNouveautes(); });
+
+// Après une mise à jour, on le signale une fois (pas au tout premier lancement)
+try {
+  const CLE_VERSION = `${store.BASE}-version-vue`;
+  const vue = localStorage.getItem(CLE_VERSION);
+  if (vue && VERSION && Number(vue) < Number(VERSION)) toast(`Loopace Chrono est à jour (version ${VERSION}).`, "ok", { texte: "Voir les nouveautés", fn: afficherNouveautes });
+  if (VERSION) localStorage.setItem(CLE_VERSION, VERSION);
+} catch { /* stockage local bloqué : pas d'annonce */ }
 
 // ── Mise à jour des catégories automatiques ──────────────────
 // On édite en années de naissance pour la saison en cours (c'est ce que donnent les règlements),

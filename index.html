@@ -16,14 +16,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=19">
+  <link rel="stylesheet" href="styles.css?v=20">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
-  <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
+  <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
+    // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
+    if (/chrono-test/i.test(location.pathname)) {
+      document.documentElement.classList.add("is-test");
+      document.title = "[TEST] " + document.title;
+      document.querySelector('link[rel="manifest"]').setAttribute("href", "manifest-test.webmanifest");
+    }</script>
   <!-- Excel (SheetJS) et PDF (jsPDF + AutoTable) : mis en cache par le service worker pour fonctionner hors ligne -->
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=19"></script>
+  <script type="module" src="js/app.js?v=20"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -318,7 +324,7 @@
     </section>
   </main>
 
-  <footer class="foot">© 2026 Romain MARTIN · Loopace Chrono · données stockées localement dans ce navigateur</footer>
+  <footer class="foot">© 2026 Romain MARTIN · Loopace Chrono · <a href="#" id="lienNouveautes">version <span id="numeroVersion"></span> · nouveautés</a> · données stockées localement dans ce navigateur</footer>
 
   <!-- ===== DIALOGUES ===== -->
   <dialog class="dlg dlg--course" id="dlgCourse">
@@ -597,6 +603,16 @@
         <button type="button" class="btn" id="btnEnregistrerBareme"><svg class="ico"><use href="#i-check"/></svg>Enregistrer et recalculer</button>
       </div>
     </div>
+  </dialog>
+
+  <dialog class="dlg dlg--nouveautes" id="dlgNouveautes">
+    <form method="dialog" class="dlg__body">
+      <h3>Nouveautés de Loopace Chrono</h3>
+      <div class="changelog" id="changelog"><p class="muted">Chargement…</p></div>
+      <div class="dlg__actions">
+        <button class="btn" value="ok">Fermer</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog class="dlg" id="dlgConfirm">

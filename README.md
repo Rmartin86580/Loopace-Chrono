@@ -16,7 +16,7 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
 | `js/excel.js` | Import / export Excel et modèle d'import (SheetJS) |
 | `js/pdf.js` | Feuille de résultats PDF selon le modèle de la course : classements, colonnes, orientation, apparence (jsPDF + AutoTable) |
 | `baremes.json` | Barèmes officiels des catégories automatiques (FFA, FFTri, UNSS, classes), mis à jour sur tous les postes |
-| `CHANGELOG.md` | Journal des modifications, version par version, à donner aux utilisateurs |
+| `CHANGELOG.md` | Journal des modifications, version par version : affiché dans l'appli (lien « nouveautés » en bas de page), à compléter à chaque mise en ligne |
 | `outils/nouvelle-version.py` | Numéro de version des fichiers, à augmenter avant chaque mise en ligne |
 | `sw.js` | Cache hors ligne : une fois ouverte avec du réseau, l'application fonctionne sans |
 | `manifest.webmanifest` | Installation en application sur PC (nom, icônes `assets/chrono-app-*.png`, raccourcis) |

@@ -8,6 +8,14 @@ Les mises à jour arrivent toutes seules : il suffit de recharger la page, ou de
 
 ---
 
+## Version 20 — 25 novembre 2026 · Nouveautés dans l'application
+
+- Ce journal des modifications se lit maintenant dans l'application : lien « version · nouveautés » en bas
+  de chaque page.
+- Après une mise à jour, un message l'annonce une fois, avec un bouton « Voir les nouveautés ».
+
+---
+
 ## Version 19 — 25 novembre 2026 · Fiabilité du chronométrage
 
 ### Sauvegarde automatique sur l'ordinateur
@@ -79,13 +87,3 @@ Les mises à jour arrivent toutes seules : il suffit de recharger la page, ou de
 - Installation comme une application sur PC, fonctionnement sans internet.
 - Bips d'arrivée réglables en volume, pensés pour s'entendre dans le bruit d'une arrivée.
 - L'attribution des dossards ne modifie jamais un dossard déjà donné.
-
----
-
-## Prochainement
-
-- **Arrivées en paquet** : un bouton « top » (télécommande sans fil) sur la ligne et le scan des dossards
-  dans le couloir, associés automatiquement.
-- **Corriger les arrivées** : modifier un temps, intervertir deux coureurs, disqualifier, ajouter un retardataire.
-- **Plusieurs courses en même temps** sur la même ligne d'arrivée.
-- Ensuite : export des résultats pour la FFA, diplômes, puis les modes **relais / ekiden** et **backyard**.

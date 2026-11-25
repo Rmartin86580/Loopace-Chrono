@@ -208,6 +208,18 @@ select.input { cursor: pointer; }
 
 .nav__install { flex: none; }
 
+/* Version de test : bandeau orange impossible à confondre avec la version stable */
+.is-test .nav { border-bottom: 3px solid #f08c00; }
+.is-test .nav::before {
+  content: "VERSION DE TEST · données séparées de la version stable";
+  display: block; padding: .3em 1em; background: #f08c00; color: #1d1300;
+  text-align: center; font-size: .74rem; font-weight: 800; letter-spacing: .04em;
+}
+.is-test .screen::before {
+  content: "TEST"; position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 50;
+  padding: .2em .9em; border-radius: 999px; background: #f08c00; color: #1d1300; font-weight: 800; font-size: .8rem; letter-spacing: .08em;
+}
+
 /* Pastille de la sauvegarde automatique (en-tête) et son état dans Administration */
 .sauve {
   display: inline-flex; align-items: center; gap: .45em; flex: none;
@@ -253,6 +265,8 @@ select.input { cursor: pointer; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .8rem; }
 .toolbar > .input { flex: 1 1 260px; max-width: 420px; }
 .foot { padding: 18px 16px 24px; text-align: center; font-size: .78rem; color: var(--faint); }
+.foot a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.foot a:hover { color: var(--text); }
 
 .empty { display: grid; place-items: center; gap: 1rem; padding: 3rem 1rem; text-align: center; color: var(--muted); }
 .empty__logo { width: 220px; mix-blend-mode: lighten; }
@@ -441,6 +455,21 @@ select.input { cursor: pointer; }
 
 /* ===== Modèle PDF : constructeur en glisser-déposer ===== */
 .dlg.dlg--modele { width: min(1180px, 100% - 32px); }
+
+/* Nouveautés : rendu du journal des modifications (CHANGELOG.md) */
+.dlg.dlg--nouveautes { width: min(760px, 100% - 32px); }
+.changelog { color: var(--muted); line-height: 1.55; font-size: .92rem; }
+.changelog h4 { margin: 1.4rem 0 .5rem; color: var(--text); font-size: 1.05rem; }
+.changelog h4:first-child { margin-top: 0; }
+.changelog h5 { margin: 1rem 0 .3rem; color: var(--accent); font-size: .9rem; }
+.changelog p { margin: .4rem 0; }
+.changelog ul { margin: .2rem 0 .6rem; padding-left: 1.2rem; }
+.changelog ul ul { margin: .2rem 0; }
+.changelog li { margin: .25rem 0; }
+.changelog b { color: var(--text); }
+.changelog hr { border: 0; border-top: 1px solid var(--line); margin: 1.4rem 0; }
+.changelog a { color: var(--accent); text-decoration: underline; }
+.toast__action { margin-left: .8em; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .modele-tete { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem 1.4rem; }
 .modele-tete h3 { margin: 0 auto .55rem 0; }
 .modele-tete__nom { flex: 1 1 280px; max-width: 420px; }

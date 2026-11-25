@@ -1,20 +1,21 @@
 // Écran public : grand chronomètre et classement en direct de la course choisie dans l'onglet Chronomètre.
 // Lecture seule ; il se met à jour quand l'application principale enregistre (BroadcastChannel).
 
-import * as store from "./store.js?v=19";
-import { course } from "./store.js?v=19";
-import * as calc from "./calc.js?v=19";
-import { fmtDuree, nomComplet, compareDossard } from "./calc.js?v=19";
+import * as store from "./store.js?v=20";
+import { course } from "./store.js?v=20";
+import * as calc from "./calc.js?v=20";
+import { fmtDuree, nomComplet, compareDossard } from "./calc.js?v=20";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const ETATS = { "attente": "En attente", "en-cours": "En course", "arretee": "Terminée" };
 
+const CLE_COURSE = `${store.BASE}-course`;
 let courseId = null;
 let nbLignes = -1;
 
 function lireSelection() {
-  try { courseId = localStorage.getItem("loopace-chrono-course"); } catch { courseId = null; }
+  try { courseId = localStorage.getItem(CLE_COURSE); } catch { courseId = null; }
 }
 
 function rendre() {
@@ -82,7 +83,7 @@ document.addEventListener("fullscreenchange", () => { $("#btnPleinEcran").textCo
 await store.init();
 lireSelection();
 store.onExterne((quoi) => { if (quoi === "selection") lireSelection(); rendre(); });
-window.addEventListener("storage", (e) => { if (e.key === "loopace-chrono-course") { lireSelection(); rendre(); } });
+window.addEventListener("storage", (e) => { if (e.key === CLE_COURSE) { lireSelection(); rendre(); } });
 setInterval(tic, 250);
 rendre();
 
