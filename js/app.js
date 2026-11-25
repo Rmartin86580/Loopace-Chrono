@@ -1,13 +1,13 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=21";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=21";
-import * as calc from "./calc.js?v=21";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=21";
-import * as excel from "./excel.js?v=21";
-import * as sauvegarde from "./sauvegarde.js?v=21";
-import { genererDiplomes } from "./diplomes.js?v=21";
-import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=21";
+import * as store from "./store.js?v=22";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=22";
+import * as calc from "./calc.js?v=22";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=22";
+import * as excel from "./excel.js?v=22";
+import * as sauvegarde from "./sauvegarde.js?v=22";
+import { genererDiplomes } from "./diplomes.js?v=22";
+import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=22";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1289,11 +1289,29 @@ function rendreAdmin() {
   }).join("");
   if (!baremeModifie) chargerBareme();
   afficherSauvegarde();
+  afficherRubrique();
   navigator.storage?.persisted?.().then((oui) => {
-    $("#admStockage").textContent = oui ? "Données de ce navigateur protégées : il ne les effacera pas de lui-même."
-      : "Le navigateur n'a pas encore protégé ses données (il le fait souvent une fois l'appli installée) : la sauvegarde automatique est d'autant plus utile.";
+    $("#admStockage").textContent = oui ? "Protégées : le navigateur ne les effacera pas de lui-même."
+      : "Pas encore protégées par le navigateur (il le fait souvent une fois l'appli installée) : la sauvegarde automatique est d'autant plus utile.";
+    $("#admTuileStockageVal").textContent = oui ? "Protégées" : "Non protégées";
+    $("#admTuileStockage").className = `adm-tuile adm-tuile--${oui ? "ok" : "pause"}`;
   }).catch(() => {});
 }
+
+// ── Rubriques de l'administration (menu à gauche), dernière ouverte retenue sur ce poste ─
+const CLE_RUBRIQUE = `${store.BASE}-admin-rubrique`;
+let rubrique = "sauvegarde";
+try { rubrique = localStorage.getItem(CLE_RUBRIQUE) || rubrique; } catch { /* stockage indisponible */ }
+
+function afficherRubrique(r = rubrique) {
+  if (!$(`.adm__rubrique[data-rubrique="${r}"]`)) r = "sauvegarde";
+  rubrique = r;
+  $$(".adm__rubrique").forEach((s) => { s.hidden = s.dataset.rubrique !== r; });
+  $$(".adm__lien").forEach((b) => { b.classList.toggle("is-on", b.dataset.rubrique === r); b.setAttribute("aria-current", b.dataset.rubrique === r ? "page" : "false"); });
+  try { localStorage.setItem(CLE_RUBRIQUE, r); } catch { /* idem */ }
+}
+$$(".adm__lien").forEach((b) => b.addEventListener("click", () => afficherRubrique(b.dataset.rubrique)));
+$$(".adm-tuile[data-aller]").forEach((b) => b.addEventListener("click", () => afficherRubrique(b.dataset.aller)));
 
 // ── Sauvegarde automatique dans un dossier du PC ─────────────
 function afficherSauvegarde(e = sauvegarde.lireEtat()) {
@@ -1319,6 +1337,9 @@ function afficherSauvegarde(e = sauvegarde.lireEtat()) {
     pause: `Dossier « ${e.nom} » · en pause : le navigateur demande votre accord pour y écrire.`,
     erreur: `Dossier « ${e.nom} » · impossible d'écrire (clé USB retirée, dossier supprimé ?) : ${e.erreur}`,
   };
+  const tuile = { impossible: "Indisponible", aucun: "Désactivée", ok: heure ? `● ${heure}` : "● Active", pause: "En pause", erreur: "Erreur" }[e.statut];
+  $("#admTuileSauveVal").textContent = tuile;
+  $("#admTuileSauve").className = `adm-tuile adm-tuile--${e.statut === "impossible" ? "pause" : e.statut}`;
   const etatAdm = $("#admSauveEtat");
   etatAdm.textContent = textes[e.statut];
   etatAdm.className = `sauve-etat sauve-etat--${e.statut}`;
@@ -1418,6 +1439,8 @@ async function afficherNouveautes() {
 }
 
 $("#numeroVersion").textContent = VERSION;
+$("#admVersion").textContent = VERSION;
+$("#admTuileVersion").addEventListener("click", () => afficherNouveautes());
 $("#lienNouveautes").addEventListener("click", (e) => { e.preventDefault(); afficherNouveautes(); });
 
 // Après une mise à jour, on le signale une fois (pas au tout premier lancement)

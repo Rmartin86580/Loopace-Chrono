@@ -424,9 +424,34 @@ select.input { cursor: pointer; }
 .theme-card__band img { height: 100%; width: auto; max-width: 70%; object-fit: contain; background: #fff; border-radius: 8px; padding: 4px; }
 .theme-card__body { display: flex; flex-direction: column; gap: .1rem; padding: .75rem .9rem .85rem; }
 .theme-card__body small { color: var(--muted); font-size: .78rem; }
-.admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start; }
-.options { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; margin-top: .9rem; }
-.options .check { font-weight: 600; }
+/* ===== Administration : bandeau d'état, menu à gauche, une rubrique à la fois ===== */
+.adm-etat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.adm-tuile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; padding: .85rem 1.1rem;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text);
+  font: inherit; text-align: left; cursor: pointer; transition: border-color .2s;
+}
+.adm-tuile:hover { border-color: var(--line-strong); }
+.adm-tuile__titre { font-size: .76rem; color: var(--muted); }
+.adm-tuile__val { font-size: 1.05rem; font-weight: 700; }
+.adm-tuile--ok .adm-tuile__val { color: var(--accent); }
+.adm-tuile--pause .adm-tuile__val { color: var(--warn); }
+.adm-tuile--erreur .adm-tuile__val, .adm-tuile--aucun .adm-tuile__val { color: var(--danger); }
+.adm { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: start; }
+.adm__menu { display: flex; flex-direction: column; gap: .2rem; padding: .6rem; position: sticky; top: 84px; }
+.adm__lien {
+  display: flex; align-items: center; gap: .6rem; padding: .65em .9em; border: 0; border-radius: 10px;
+  background: transparent; color: var(--muted); font: inherit; font-size: .92rem; font-weight: 500; text-align: left; cursor: pointer;
+}
+.adm__lien:hover { color: var(--text); background: rgba(var(--accent-rgb), .06); }
+.adm__lien.is-on { color: var(--on-accent); background: #B7E532; font-weight: 600; }
+.adm__rubrique > h2 { margin-bottom: .2rem; }
+.reglage { display: flex; align-items: center; justify-content: space-between; gap: 1rem 1.5rem; padding: 1rem 0; border-top: 1px solid var(--line); }
+.adm__rubrique > h2 + .reglage, .adm__rubrique > .meta + .reglage { border-top: 0; }
+.reglage__txt { flex: 1 1 auto; min-width: 0; }
+.reglage__txt > b { display: block; margin-bottom: .2rem; }
+.reglage__txt .meta { margin: 0; }
+.reglage__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; flex: none; }
 .volume { display: flex; align-items: center; gap: .8rem; width: 100%; max-width: 360px; font-size: .86rem; color: var(--muted); }
 .volume output { min-width: 3.4em; text-align: right; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 .volume input[type="range"] {
@@ -574,7 +599,9 @@ select.input { cursor: pointer; }
 }
 @media (max-width: 900px) {
   .nav__inner { gap: .8rem; }
-  .split, .admin-grid, .modele { grid-template-columns: minmax(0, 1fr); }
+  .split, .adm, .modele { grid-template-columns: minmax(0, 1fr); }
+  .adm__menu { position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none; }
+  .adm__lien { flex: none; }
   .course-list, .archives { max-height: 260px; }
 }
 @media (max-width: 720px) {
@@ -588,6 +615,11 @@ select.input { cursor: pointer; }
   .field--inline { flex-direction: column; align-items: stretch; width: 100%; }
   .field--inline .input { min-width: 0; }
   .form-grid { grid-template-columns: minmax(0, 1fr); }
+  .adm-etat { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .adm-tuile { flex-direction: row; justify-content: space-between; align-items: center; padding: .55rem .9rem; border-radius: 10px; }
+  .adm-tuile__val { font-size: .92rem; }
+  .reglage { flex-direction: column; align-items: stretch; }
+  .reglage__actions { justify-content: flex-start; }
   .btn--go, .btn--stop { min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {

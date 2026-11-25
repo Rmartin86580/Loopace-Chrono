@@ -1,10 +1,10 @@
 // Écran public : grand chronomètre et classement en direct de la course choisie dans l'onglet Chronomètre.
 // Lecture seule ; il se met à jour quand l'application principale enregistre (BroadcastChannel).
 
-import * as store from "./store.js?v=21";
-import { course } from "./store.js?v=21";
-import * as calc from "./calc.js?v=21";
-import { fmtDuree, nomComplet, compareDossard } from "./calc.js?v=21";
+import * as store from "./store.js?v=22";
+import { course } from "./store.js?v=22";
+import * as calc from "./calc.js?v=22";
+import { fmtDuree, nomComplet, compareDossard } from "./calc.js?v=22";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);

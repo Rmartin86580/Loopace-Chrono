@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=22">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
     // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
@@ -29,7 +29,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=21"></script>
+  <script type="module" src="js/app.js?v=22"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -264,63 +264,129 @@
 
     <!-- ===== ADMINISTRATION ===== -->
     <section class="view" id="view-admin" hidden>
-      <div class="card">
-        <div class="card__head">
-          <div><h2>Modèles PDF</h2><p class="meta">Contenu (classements, colonnes, orientation) et apparence (couleur, logo, titres) de la feuille de résultats. Choisissez le modèle dans chaque course, selon le type d'épreuve.</p></div>
-          <button class="btn btn--sm" id="btnNouveauTheme"><svg class="ico"><use href="#i-plus"/></svg>Nouveau modèle</button>
-        </div>
-        <div class="themes" id="grilleThemes"></div>
+      <!-- Bandeau d'état : sauvegarde, protection des données, version -->
+      <div class="adm-etat">
+        <button type="button" class="adm-tuile" id="admTuileSauve" data-aller="sauvegarde">
+          <span class="adm-tuile__titre">Sauvegarde auto</span><span class="adm-tuile__val" id="admTuileSauveVal">—</span>
+        </button>
+        <button type="button" class="adm-tuile" id="admTuileStockage" data-aller="sauvegarde">
+          <span class="adm-tuile__titre">Données du navigateur</span><span class="adm-tuile__val" id="admTuileStockageVal">—</span>
+        </button>
+        <button type="button" class="adm-tuile" id="admTuileVersion">
+          <span class="adm-tuile__titre">Version</span><span class="adm-tuile__val"><span id="admVersion"></span> · <u>nouveautés</u></span>
+        </button>
       </div>
 
-      <div class="admin-grid">
-        <div class="card">
-          <h2>Options</h2>
-          <p class="meta">Réglages enregistrés sur ce poste.</p>
-          <div class="options">
-            <label class="check"><input type="checkbox" id="optSon"> Bip à chaque arrivée</label>
-            <p class="meta">Un bip confirme chaque arrivée, deux bips graves signalent une erreur, une mélodie la fin de course. Pratique avec une douchette.</p>
-            <label class="volume" for="optVolume">
-              <span>Volume</span>
-              <input type="range" id="optVolume" min="0" max="100" step="5">
-              <output id="valeurVolume" for="optVolume"></output>
-            </label>
-            <button type="button" class="btn btn--ghost btn--sm" id="btnTesterSon"><svg class="ico"><use href="#i-sound"/></svg>Tester le son</button>
-          </div>
-        </div>
-        <div class="card">
-          <h2>Catégories automatiques</h2>
-          <p class="meta">Barèmes mis à jour automatiquement sur tous les postes ; les années avancent seules à chaque saison.</p>
-          <div class="bareme__ligne">
-            <select class="input" id="admBareme" aria-label="Barème"></select>
-            <span class="chip" id="admEtatBareme"></span>
-          </div>
-          <button type="button" class="btn btn--ghost btn--sm bareme__modifier" id="btnModifierBareme"><svg class="ico"><use href="#i-edit"/></svg>Modifier à la main</button>
-        </div>
-        <div class="card">
-          <h2>Import Excel</h2>
-          <p class="meta">Le modèle contient les colonnes attendues (Nom, Sexe et Né obligatoires) et une feuille d'instructions.</p>
-          <button class="btn btn--ghost btn--sm" id="btnModele"><svg class="ico"><use href="#i-download"/></svg>Télécharger le modèle</button>
-        </div>
-        <div class="card">
-          <h2>Sauvegarde automatique</h2>
-          <p class="meta">L'application enregistre toute seule une copie complète (courses, réglages, archives) dans un dossier de ce PC : quelques secondes après chaque modification, plus une copie datée au départ et à la fin de chaque course, à l'archivage et chaque jour (les 30 dernières, dans le sous-dossier « Historique »). Un dossier OneDrive ou une clé USB garde en plus une copie hors du PC.</p>
-          <p class="sauve-etat" id="admSauveEtat"></p>
-          <div class="actions">
-            <button class="btn btn--sm" id="btnDossierSauvegarde"><svg class="ico"><use href="#i-archive"/></svg><span>Choisir le dossier</span></button>
-            <button class="btn btn--ghost btn--sm" id="btnAutoriserSauvegarde" hidden><svg class="ico"><use href="#i-check"/></svg>Autoriser</button>
-            <button class="btn btn--ghost btn--sm" id="btnArretSauvegarde" hidden><svg class="ico"><use href="#i-x"/></svg>Arrêter</button>
-          </div>
-          <p class="meta" id="admStockage"></p>
-        </div>
-        <div class="card">
-          <h2>Données</h2>
-          <p class="meta">Tout est enregistré dans ce navigateur, sur cet appareil. Exportez une sauvegarde (courses, réglages et archives) pour changer d'ordinateur. « Restaurer » relit aussi les copies du dossier « Historique » de la sauvegarde automatique.</p>
-          <div class="actions">
-            <button class="btn btn--ghost btn--sm" id="btnSauvegarde"><svg class="ico"><use href="#i-download"/></svg>Exporter une sauvegarde</button>
-            <button class="btn btn--ghost btn--sm" id="btnRestaurer"><svg class="ico"><use href="#i-upload"/></svg>Restaurer</button>
-            <button class="btn btn--ghost btn--sm" id="btnDemo"><svg class="ico"><use href="#i-plus"/></svg>Course de démonstration</button>
-          </div>
-          <input type="file" id="fichierRestaurer" accept=".json,application/json" hidden>
+      <div class="adm">
+        <nav class="adm__menu card" aria-label="Rubriques de l'administration">
+          <button type="button" class="adm__lien" data-rubrique="sauvegarde"><svg class="ico"><use href="#i-archive"/></svg>Sauvegarde</button>
+          <button type="button" class="adm__lien" data-rubrique="modeles"><svg class="ico"><use href="#i-pdf"/></svg>Modèles PDF</button>
+          <button type="button" class="adm__lien" data-rubrique="categories"><svg class="ico"><use href="#i-hash"/></svg>Catégories</button>
+          <button type="button" class="adm__lien" data-rubrique="son"><svg class="ico"><use href="#i-sound"/></svg>Son</button>
+          <button type="button" class="adm__lien" data-rubrique="import"><svg class="ico"><use href="#i-sheet"/></svg>Import Excel</button>
+        </nav>
+
+        <div class="adm__contenu">
+          <section class="card adm__rubrique" data-rubrique="sauvegarde">
+            <h2>Sauvegarde</h2>
+            <div class="reglage">
+              <div class="reglage__txt">
+                <b>Sauvegarde automatique</b>
+                <p class="meta">Copie complète (courses, réglages, archives) dans un dossier de ce PC, quelques secondes après chaque modification, plus une copie datée au départ et à la fin de chaque course, à l'archivage et chaque jour (les 30 dernières, dans « Historique »). Un dossier OneDrive ou une clé USB garde une copie hors du PC.</p>
+                <p class="sauve-etat" id="admSauveEtat"></p>
+              </div>
+              <div class="reglage__actions">
+                <button class="btn btn--sm" id="btnDossierSauvegarde"><svg class="ico"><use href="#i-archive"/></svg><span>Choisir le dossier</span></button>
+                <button class="btn btn--ghost btn--sm" id="btnAutoriserSauvegarde" hidden><svg class="ico"><use href="#i-check"/></svg>Autoriser</button>
+                <button class="btn btn--ghost btn--sm" id="btnArretSauvegarde" hidden><svg class="ico"><use href="#i-x"/></svg>Arrêter</button>
+              </div>
+            </div>
+            <div class="reglage">
+              <div class="reglage__txt">
+                <b>Sauvegarde manuelle</b>
+                <p class="meta">Un fichier avec tout, pour changer d'ordinateur. « Restaurer » relit ce fichier ou une copie du dossier « Historique ».</p>
+              </div>
+              <div class="reglage__actions">
+                <button class="btn btn--ghost btn--sm" id="btnSauvegarde"><svg class="ico"><use href="#i-download"/></svg>Exporter</button>
+                <button class="btn btn--ghost btn--sm" id="btnRestaurer"><svg class="ico"><use href="#i-upload"/></svg>Restaurer</button>
+              </div>
+              <input type="file" id="fichierRestaurer" accept=".json,application/json" hidden>
+            </div>
+            <div class="reglage">
+              <div class="reglage__txt">
+                <b>Données de ce navigateur</b>
+                <p class="meta" id="admStockage"></p>
+              </div>
+            </div>
+            <div class="reglage">
+              <div class="reglage__txt">
+                <b>Course de démonstration</b>
+                <p class="meta">Une course fictive de 16 participants, pour essayer l'application.</p>
+              </div>
+              <div class="reglage__actions">
+                <button class="btn btn--ghost btn--sm" id="btnDemo"><svg class="ico"><use href="#i-plus"/></svg>Créer</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card adm__rubrique" data-rubrique="modeles" hidden>
+            <div class="card__head">
+              <div><h2>Modèles PDF</h2><p class="meta">Contenu (classements, colonnes, orientation) et apparence (couleur, logo, titres) de la feuille de résultats. Chaque course choisit son modèle.</p></div>
+              <button class="btn btn--sm" id="btnNouveauTheme"><svg class="ico"><use href="#i-plus"/></svg>Nouveau modèle</button>
+            </div>
+            <div class="themes" id="grilleThemes"></div>
+          </section>
+
+          <section class="card adm__rubrique" data-rubrique="categories" hidden>
+            <h2>Catégories automatiques</h2>
+            <div class="reglage">
+              <div class="reglage__txt">
+                <b>Barème</b>
+                <p class="meta">Mis à jour automatiquement sur tous les postes ; les années avancent seules à chaque saison.</p>
+                <div class="bareme__ligne">
+                  <select class="input" id="admBareme" aria-label="Barème"></select>
+                  <span class="chip" id="admEtatBareme"></span>
+                </div>
+              </div>
+              <div class="reglage__actions">
+                <button type="button" class="btn btn--ghost btn--sm" id="btnModifierBareme"><svg class="ico"><use href="#i-edit"/></svg>Modifier à la main</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card adm__rubrique" data-rubrique="son" hidden>
+            <h2>Son</h2>
+            <p class="meta">Réglages enregistrés sur ce poste.</p>
+            <div class="reglage">
+              <div class="reglage__txt">
+                <label class="check"><input type="checkbox" id="optSon"> <b>Bip à chaque arrivée</b></label>
+                <p class="meta">Un bip confirme chaque arrivée, deux bips graves signalent une erreur, une mélodie la fin de course. Pratique avec une douchette.</p>
+              </div>
+            </div>
+            <div class="reglage">
+              <label class="volume" for="optVolume">
+                <span>Volume</span>
+                <input type="range" id="optVolume" min="0" max="100" step="5">
+                <output id="valeurVolume" for="optVolume"></output>
+              </label>
+              <div class="reglage__actions">
+                <button type="button" class="btn btn--ghost btn--sm" id="btnTesterSon"><svg class="ico"><use href="#i-sound"/></svg>Tester le son</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card adm__rubrique" data-rubrique="import" hidden>
+            <h2>Import Excel</h2>
+            <div class="reglage">
+              <div class="reglage__txt">
+                <b>Modèle d'import des participants</b>
+                <p class="meta">Les colonnes attendues (Nom, Sexe et Né obligatoires) et une feuille d'instructions. L'import se fait ensuite dans l'onglet Courses, bouton « Excel ».</p>
+              </div>
+              <div class="reglage__actions">
+                <button class="btn btn--ghost btn--sm" id="btnModele"><svg class="ico"><use href="#i-download"/></svg>Télécharger le modèle</button>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </section>
