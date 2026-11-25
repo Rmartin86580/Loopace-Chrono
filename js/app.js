@@ -1,13 +1,13 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=22";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=22";
-import * as calc from "./calc.js?v=22";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=22";
-import * as excel from "./excel.js?v=22";
-import * as sauvegarde from "./sauvegarde.js?v=22";
-import { genererDiplomes } from "./diplomes.js?v=22";
-import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=22";
+import * as store from "./store.js?v=23";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=23";
+import * as calc from "./calc.js?v=23";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=23";
+import * as excel from "./excel.js?v=23";
+import * as sauvegarde from "./sauvegarde.js?v=23";
+import { genererDiplomes } from "./diplomes.js?v=23";
+import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=23";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -701,24 +701,26 @@ function choisirCourseChrono(id) {
 }
 
 function rendreChrono() {
-  // Une course qui tourne reste affichée : on ne peut pas en changer tant qu'elle n'est pas arrêtée
-  const enMarche = state.courses.find((c) => calc.etatChrono(c).etat === "en-cours");
-  if (enMarche && chronoSel !== enMarche.id) choisirCourseChrono(enMarche.id);
+  // Plusieurs courses peuvent tourner : la liste choisit celle qu'on regarde (départ, arrêt, classement)
   if (chronoSel && !course(chronoSel)) choisirCourseChrono(null);
+  const lancees = calc.coursesEnCours();
+  if (!chronoSel && lancees.length) choisirCourseChrono(lancees[0].id);
 
   const c = course(chronoSel);
   const eqChrono = calc.equipesDe(c, c ? inscritsDe(c.id) : []);
   optionsCourses($("#chronoCourse"), chronoSel);
   const etat = calc.etatChrono(c).etat;
-  $("#chronoCourse").disabled = !!enMarche;
+  const zoneLancees = $("#coursesLancees");
+  zoneLancees.hidden = lancees.length < 2 && !(lancees.length === 1 && lancees[0].id !== chronoSel);
+  zoneLancees.innerHTML = lancees.map((x) => `<button type="button" class="lancee${x.id === chronoSel ? " is-on" : ""}" data-id="${x.id}">${esc(x.nom)} <b data-temps="${x.id}"></b></button>`).join("");
 
   const s = c ? calc.situation(c.id) : null;
   $("#btnDepart").disabled = !c || etat !== "attente";
   $("#btnArret").disabled = etat !== "en-cours";
   $("#btnRaz").disabled = !c || etat === "attente";
   $("#btnAnnulerArrivee").disabled = !s?.arrives.length;
-  $("#saisieDossard").disabled = etat !== "en-cours";
-  $("#formArrivee button").disabled = etat !== "en-cours";
+  $("#saisieDossard").disabled = !lancees.length; // la saisie vaut pour toutes les courses lancées
+  $("#formArrivee button").disabled = !lancees.length;
 
   const chip = $("#chronoEtat");
   chip.textContent = c ? ETATS[etat] : "Aucune course";
@@ -736,18 +738,19 @@ function rendreChrono() {
 
   $("#dernierDossard").textContent = s?.arrives.length ? s.arrives[s.arrives.length - 1].dossard : "—";
 
-  const lignes = s ? [...s.arrives.map((i, k) => ({ i, pos: k + 1 })), ...s.dnf.map((i) => ({ i, pos: null }))] : [];
-  $("#nbClasses").textContent = s ? `${s.arrives.length} arrivé(s)${s.dnf.length ? ` · ${s.dnf.length} DNF` : ""}` : "";
-  $("#tableArrivees").innerHTML = lignes.length ? lignes.map(({ i, pos }) => `<tr class="${pos == null ? "is-dnf" : pos <= 3 ? `podium podium--${pos}` : ""}">
-      <td><b>${pos ?? "DNF"}</b></td><td><b>${esc(i.dossard)}</b></td><td>${esc(nomComplet(i))}</td><td>${esc(calc.equipeAffichee(i, eqChrono))}</td>
-      <td>${fmtHeure(i.arrivee) || "-"}</td><td class="r mono"><b>${pos == null ? "DNF" : fmtDuree(calc.tempsOfficiel(i))}</b></td></tr>`).join("")
+  const lignes = s ? [...s.arrives.map((i, k) => ({ i, pos: k + 1 })), ...s.dnf.map((i) => ({ i, pos: null })), ...s.dsq.map((i) => ({ i, pos: null }))] : [];
+  $("#nbClasses").textContent = s ? `${s.arrives.length} arrivé(s)${s.dnf.length ? ` · ${s.dnf.length} DNF` : ""}${s.dsq.length ? ` · ${s.dsq.length} DSQ` : ""}` : "";
+  $("#tableArrivees").innerHTML = lignes.length ? lignes.map(({ i, pos }) => `<tr data-id="${i.id}" class="${pos == null ? "is-dnf" : pos <= 3 ? `podium podium--${pos}` : ""}">
+      <td><b>${pos ?? i.statut}</b></td><td><b>${esc(i.dossard)}</b></td><td>${esc(nomComplet(i))}</td><td>${esc(calc.equipeAffichee(i, eqChrono))}</td>
+      <td>${fmtHeure(i.arrivee) || "-"}</td><td class="r mono"><b>${pos == null ? i.statut : fmtDuree(calc.tempsOfficiel(i))}</b>${marqueCorrige(i)}</td></tr>`).join("")
     : `<tr><td colspan="6" class="muted c">Les arrivées s'afficheront ici.</td></tr>`;
+  rendreAttente(c);
   const sc = $("#scrollClassement");
   sc.scrollTop = sc.scrollHeight;
 
   const attente = etat === "attente" && s ? s.avecBulletin.sort((a, b) => compareDossard(a.dossard, b.dossard)) : s?.enCours || [];
   $("#nbEnCours").textContent = s ? String(attente.length) : "";
-  $("#listeEnCours").innerHTML = attente.map((i) => `<li><b>${esc(i.dossard) || "—"}</b><span>${esc(nomComplet(i))}</span><em>${esc(calc.equipeAffichee(i, eqChrono))}</em></li>`).join("")
+  $("#listeEnCours").innerHTML = attente.map((i) => `<li${etat === "attente" ? "" : ` data-id="${i.id}" title="Corriger"`}><b>${esc(i.dossard) || "—"}</b><span>${esc(nomComplet(i))}</span><em>${esc(calc.equipeAffichee(i, eqChrono))}</em></li>`).join("")
     || `<li class="muted-li">${etat === "arretee" ? "Plus personne en course." : "Personne."}</li>`;
 
   tic();
@@ -757,7 +760,16 @@ function tic() {
   const c = course(chronoSel);
   $("#chronoAffichage").textContent = fmtDuree(calc.tempsCourse(c), true);
   $("#chronoAffichage").classList.toggle("is-running", calc.etatChrono(c).etat === "en-cours");
+  $$("#coursesLancees [data-temps]").forEach((b) => { b.textContent = fmtDuree(calc.tempsCourse(course(b.dataset.temps))); });
 }
+
+/** Petit signe à côté d'un temps ou d'un statut corrigé à la main. */
+const marqueCorrige = (i) => (i.corrige ? `<span class="corrige" title="Corrigé à la main${i.motif ? ` : ${esc(i.motif)}` : ""}">✎</span>` : "");
+
+$("#coursesLancees").addEventListener("click", (e) => {
+  const b = e.target.closest(".lancee");
+  if (b) { choisirCourseChrono(b.dataset.id); rendreChrono(); $("#saisieDossard").focus(); }
+});
 setInterval(() => { if (vue === "chrono") tic(); }, 100);
 
 $("#chronoCourse").addEventListener("change", (e) => { choisirCourseChrono(e.target.value); rendreChrono(); });
@@ -767,6 +779,12 @@ $("#btnDepart").addEventListener("click", async () => {
   if (!c) return;
   const nb = calc.situation(c.id).avecBulletin.length;
   if (!nb) { toast("Aucun participant n'a de bulletin complet : personne ne peut partir.", "warn"); return; }
+  const conflits = calc.conflitsDossards(c.id);
+  if (conflits.length) {
+    const liste = conflits.slice(0, 8).map((x) => `${x.dossard} (${x.course})`).join(", ");
+    toast(`Départ impossible : deux courses lancées ensemble doivent avoir des dossards différents. Déjà utilisé(s) par une course en cours : ${liste}${conflits.length > 8 ? "…" : ""}`, "err");
+    return;
+  }
   calc.demarrer(c.id);
   await store.sauver();
   sauvegarde.copie();
@@ -890,22 +908,24 @@ $("#formArrivee").addEventListener("submit", async (e) => {
   const dossard = champ.value.trim();
   champ.value = "";
   champ.focus();
-  if (!dossard || !chronoSel) return;
-  const r = calc.arrivee(chronoSel, dossard);
+  if (!dossard) return;
+  const plusieurs = calc.coursesEnCours().length > 1;
+  const r = calc.arriveeLigne(dossard, chronoSel);
   const msg = $("#arriveeMessage");
   if (!r.ok) {
     msg.textContent = r.message;
-    msg.className = "arrival__msg is-err";
+    msg.className = `arrival__msg ${r.attente ? "is-warn" : "is-err"}`;
     bip(BIP_ERREUR);
+    if (r.attente) { await store.sauver(); rendre(); }
     return;
   }
   await store.sauver();
-  msg.textContent = `✓ ${r.inscrit.dossard} — ${nomComplet(r.inscrit)} — ${fmtDuree(calc.tempsOfficiel(r.inscrit))}`;
+  msg.textContent = `✓ ${r.inscrit.dossard} — ${nomComplet(r.inscrit)} — ${fmtDuree(calc.tempsOfficiel(r.inscrit))}${plusieurs ? ` — ${r.course.nom}` : ""}`;
   msg.className = "arrival__msg is-ok";
   rendre();
   bip(r.termine ? BIP_FIN : BIP_OK);
   if (r.termine) sauvegarde.copie();
-  if (r.termine) toast("Tous les participants sont arrivés : chronomètre arrêté automatiquement.");
+  if (r.termine) toast(`${plusieurs ? `${r.course.nom} : tous` : "Tous"} les participants sont arrivés : chronomètre arrêté automatiquement.`);
 });
 
 $("#btnAnnulerArrivee").addEventListener("click", async () => {
@@ -956,9 +976,9 @@ function rendreResultats() {
   $("#segEcoles").hidden = segment !== "ecoles";
   $("#segClubs").hidden = segment !== "clubs";
 
-  $("#tableResultats").innerHTML = !vide ? res.individuel.map((l) => `<tr class="${l.dnf ? "is-dnf" : l.enCours ? "is-wait" : +l.position <= 3 ? `podium podium--${l.position}` : ""}">
+  $("#tableResultats").innerHTML = !vide ? res.individuel.map((l) => `<tr data-id="${l.id}" class="${l.dnf ? "is-dnf" : l.enCours ? "is-wait" : +l.position <= 3 ? `podium podium--${l.position}` : ""}">
       <td><b>${l.position}</b></td><td><b>${esc(l.dossard)}</b></td><td>${esc(l.nom)}</td><td>${esc(l.prenom)}</td><td class="col-ecole">${esc(l.ecole)}</td><td class="col-club">${esc(l.club)}</td>
-      <td>${esc(l.categorie)}</td><td>${esc(l.sexe)}</td><td>${esc(l.naissance)}</td><td class="r mono"><b>${l.enCours ? "En course" : l.temps}</b></td></tr>`).join("")
+      <td>${esc(l.categorie)}</td><td>${esc(l.sexe)}</td><td>${esc(l.naissance)}</td><td class="r mono"><b>${l.enCours ? "En course" : l.temps}</b>${l.corrige ? `<span class="corrige" title="Corrigé à la main${l.motif ? ` : ${esc(l.motif)}` : ""}">✎</span>` : ""}</td></tr>`).join("")
     : `<tr><td colspan="10" class="muted c">Pas encore de résultats.</td></tr>`;
 
   $("#segEcoles").innerHTML = blocsEquipes(res, "ecoles", "#École", "rangEcole", "club")
@@ -986,7 +1006,7 @@ function blocsEquipes(res, cle, rangTitre, champRang, autre) {
       <div class="table-wrap"><table class="table table--compact table--nowrap">
         <thead><tr><th>${rangTitre}</th><th>#Gén.</th><th>Dossard</th><th>Nom</th><th>Prénom</th><th class="${colAutre}">${titreAutre}</th><th>Catégorie</th><th>Sexe</th><th class="r">Temps</th></tr></thead>
         <tbody>${g.participants.map((l) => `<tr class="${l.dnf || l.absent ? "is-dnf" : l.enCours ? "is-wait" : l[champRang] <= 3 ? `podium podium--${l[champRang]}` : ""}">
-          <td><b>${l[champRang] ?? (l.dnf ? "DNF" : "-")}</b></td><td>${l.position}</td><td>${esc(l.dossard)}</td><td>${esc(l.nom)}</td><td>${esc(l.prenom)}</td>
+          <td><b>${l[champRang] ?? (l.dnf ? l.position : "-")}</b></td><td>${l.position}</td><td>${esc(l.dossard)}</td><td>${esc(l.nom)}</td><td>${esc(l.prenom)}</td>
           <td class="${colAutre}">${esc(l[autre])}</td><td>${esc(l.categorie)}</td><td>${esc(l.sexe)}</td><td class="r mono"><b>${l.enCours ? "En course" : l.temps}</b></td></tr>`).join("")}</tbody>
       </table></div>
     </article>`).join("") : "";
@@ -1033,13 +1053,124 @@ $("#btnExportFFA").addEventListener("click", () => {
   } catch (err) { toast(err.message, "err"); }
 });
 
+// ══════════════════════════════════════════════════════════════
+// CORRECTIONS : temps, statut, ordre ; passages en attente
+// ══════════════════════════════════════════════════════════════
+$("#tableArrivees").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) corrigerCoureur(tr.dataset.id); });
+$("#listeEnCours").addEventListener("click", (e) => { const li = e.target.closest("li[data-id]"); if (li) corrigerCoureur(li.dataset.id); });
+$("#tableResultats").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) corrigerCoureur(tr.dataset.id); });
+
+async function corrigerCoureur(id) {
+  const i = state.inscrits.find((x) => x.id === id);
+  const c = i && course(i.courseId);
+  if (!c || c.chrono?.depart == null) return;
+  const f = $("#formCorrection");
+  const enCourse = calc.etatChrono(c).etat === "en-cours";
+  const statut = i.statut === "DSQ" ? "DSQ" : i.statut === "DNF" ? "DNF" : i.arrivee != null ? "arrive" : "encours";
+  $("#correctionTitre").textContent = `Dossard ${i.dossard || "—"} — ${nomComplet(i)}`;
+  $("#correctionInfo").textContent = `${c.nom} · ${i.arrivee != null ? `passé à ${fmtHeure(i.arrivee)}, temps exact ${fmtDuree(calc.duree(i), true)}` : "pas de temps enregistré"}${i.motif ? ` · motif : ${i.motif}` : ""}`;
+  f.statut.querySelector('[value="encours"]').hidden = !enCourse;
+  f.statut.value = statut === "encours" && !enCourse ? "DNF" : statut;
+  f.temps.value = i.arrivee != null ? fmtDuree(calc.duree(i), true) : "";
+  f.echange.value = "";
+  f.motif.value = i.motif || "";
+  $("#erreurCorrection").textContent = "";
+  const montrer = () => $$("#formCorrection [data-si]").forEach((el) => { el.hidden = el.dataset.si !== f.statut.value; });
+  f.statut.onchange = montrer;
+  montrer();
+
+  for (;;) {
+    if (await ouvrirDialogue($("#dlgCorrection")) !== "ok") return;
+    const erreur = (txt) => { $("#erreurCorrection").textContent = txt; };
+    const choix = f.statut.value;
+    if (choix === "arrive") {
+      const echange = f.echange.value.trim();
+      if (echange) {
+        const autre = calc.situation(c.id).arrives.find((x) => x.id !== i.id && String(x.dossard) === echange);
+        if (i.arrivee == null || i.statut) { erreur("Pour intervertir, ce coureur doit déjà être arrivé."); continue; }
+        if (!autre) { erreur(`Aucun arrivé avec le dossard ${echange} dans cette course.`); continue; }
+        calc.intervertir(i, autre);
+        await store.sauver();
+        rendre();
+        toast(`Temps intervertis entre les dossards ${i.dossard} et ${autre.dossard}.`);
+        return;
+      }
+      const ms = calc.lireDuree(f.temps.value);
+      if (ms == null || ms <= 0) { erreur("Temps illisible : écrivez par exemple 16:48, 16:48,7 ou 1:02:30."); continue; }
+      calc.corrigerTemps(i, ms);
+    } else if (choix === "DNF") calc.abandon(i);
+    else if (choix === "DSQ") calc.disqualifier(i, f.motif.value.trim());
+    else calc.remettreEnCourse(i);
+    await store.sauver();
+    rendre();
+    toast(`Dossard ${i.dossard} corrigé : ${{ arrive: `temps ${fmtDuree(calc.tempsOfficiel(i))}`, DNF: "abandon", DSQ: "disqualifié", encours: "remis en course" }[choix]}.`);
+    return;
+  }
+}
+
+/** Passages en attente de la course affichée : dossard inconnu ou coureur parti sans bulletin. */
+function rendreAttente(c) {
+  const liste = c?.enAttente || [];
+  const zone = $("#enAttente");
+  zone.hidden = !liste.length;
+  zone.innerHTML = liste.length ? `<h3>${liste.length} passage(s) à rattacher</h3>` + liste.map((a) => `<div class="attente__ligne">
+      <span><b>${esc(a.dossard)}</b> · ${fmtHeure(a.heure)} · ${fmtDuree(calc.arrondiFFA(a.heure - c.chrono.depart))} <span class="meta">— ${esc(a.raison)}</span></span>
+      <button type="button" class="btn btn--sm" data-attente="${a.id}">Rattacher</button></div>`).join("") : "";
+}
+$("#enAttente").addEventListener("click", (e) => { const b = e.target.closest("[data-attente]"); if (b) rattacherPassage(course(chronoSel), b.dataset.attente); });
+
+async function rattacherPassage(c, attenteId) {
+  const a = c?.enAttente?.find((x) => x.id === attenteId);
+  if (!a) return;
+  const f = $("#formRattacher");
+  $("#rattacherInfo").textContent = `Dossard ${a.dossard} passé à ${fmtHeure(a.heure)} (temps ${fmtDuree(calc.arrondiFFA(a.heure - c.chrono.depart))}) — ${a.raison}.`;
+  // Candidats : ceux qui n'ont pas de temps valable, le dossard saisi en premier
+  const candidats = inscritsDe(c.id).filter((i) => i.arrivee == null || i.statut === "DNF")
+    .sort((x, y) => (String(y.dossard) === a.dossard) - (String(x.dossard) === a.dossard) || compareDossard(x.dossard, y.dossard));
+  f.coureur.innerHTML = candidats.map((i) => `<option value="${i.id}">${esc(i.dossard || "—")} — ${esc(nomComplet(i))}${i.depart == null ? " (n'était pas parti)" : i.statut === "DNF" ? " (abandon)" : ""}</option>`).join("")
+    + `<option value="">+ Nouveau participant (dossard ${esc(a.dossard)})</option>`;
+  ["nom", "prenom", "annee", "equipe"].forEach((n) => { f[n].value = ""; });
+  const montrer = () => { $("#rattacherNouveau").hidden = !!f.coureur.value; };
+  f.coureur.onchange = montrer;
+  montrer();
+  $("#erreurRattacher").textContent = "";
+
+  for (;;) {
+    const r = await ouvrirDialogue($("#dlgRattacher"));
+    if (r === "oublier") {
+      if (!await confirmer("Supprimer ce passage", `Oublier le passage du dossard ${a.dossard} à ${fmtHeure(a.heure)} ?`, { oui: "Supprimer", danger: true })) return;
+      calc.oublierAttente(c, a.id);
+      break;
+    }
+    if (r !== "ok") return;
+    let i = state.inscrits.find((x) => x.id === f.coureur.value);
+    if (!i) {
+      if (!f.nom.value.trim()) { $("#erreurRattacher").textContent = "Indiquez au moins le nom du nouveau participant."; continue; }
+      const annee = parseInt(f.annee.value, 10) || null;
+      const eq = calc.equipesDe(c, inscritsDe(c.id));
+      i = {
+        id: uid(), courseId: c.id, dossard: dossardPris(c.id, a.dossard) ? null : a.dossard, nom: f.nom.value.trim(), prenom: f.prenom.value.trim(),
+        sexe: f.sexe.value, annee, ecole: eq.ecole ? f.equipe.value.trim() : "", club: eq.ecole ? "" : f.equipe.value.trim(),
+        categorie: calc.categorieAuto(c, annee, f.sexe.value) || "", telephone: "", licence: "", bulletin: true, depart: null, arrivee: null, statut: null,
+      };
+      state.inscrits.push(i);
+    }
+    const res = calc.rattacher(c, a.id, i);
+    if (!res.ok) { $("#erreurRattacher").textContent = res.message; continue; }
+    toast(`Passage rattaché à ${nomComplet(i)}.`);
+    break;
+  }
+  await store.sauver();
+  rendre();
+}
+
 // ── Diplômes ─────────────────────────────────────────────────
 /** Coureurs qui reçoivent un diplôme, selon les choix de la fenêtre, dans l'ordre demandé. */
 function lignesDiplomes(res, f) {
   const arrives = res.individuel.filter((l) => !l.dnf && !l.enCours && l.ms != null);
   const nb = Math.max(1, parseInt(f.nb.value, 10) || 1);
   const garde = { tous: () => true, podiums: (l) => +l.position <= 3 || l.rangCategorie <= 3, premiers: (l) => +l.position <= nb }[f.qui.value];
-  const lignes = [...arrives.filter(garde), ...(f.participation.checked ? res.individuel.filter((l) => l.dnf) : [])];
+  const lignes = [...arrives.filter(garde), ...(f.participation.checked ? res.individuel.filter((l) => l.dnf && !l.dsq) : [])];
   const fr = (a, b) => String(a || "").localeCompare(String(b || ""), "fr", { numeric: true });
   const rang = (l) => (l.dnf ? Infinity : +l.position);
   const tri = {

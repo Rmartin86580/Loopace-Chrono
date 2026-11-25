@@ -1,7 +1,7 @@
 // Logique métier : départ, arrivées, arrêt, classements individuel, par école et par club.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe, theme } from "./store.js?v=22";
+import { state, course, inscritsDe, theme } from "./store.js?v=23";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");
@@ -75,12 +75,33 @@ export function situation(courseId) {
 
 /** Même répartition sur une liste d'inscrits quelconque (par exemple celle d'une archive). */
 export function situationDe(tous) {
+  const parDossard = (a, b) => compareDossard(a.dossard, b.dossard);
   const partants = tous.filter((i) => i.depart != null);
-  const arrives = partants.filter((i) => i.arrivee != null).sort((a, b) => a.arrivee - b.arrivee);
-  const dnf = partants.filter((i) => i.arrivee == null && i.statut === "DNF").sort((a, b) => compareDossard(a.dossard, b.dossard));
-  const enCours = partants.filter((i) => i.arrivee == null && i.statut !== "DNF").sort((a, b) => compareDossard(a.dossard, b.dossard));
+  const arrives = partants.filter((i) => i.arrivee != null && i.statut !== "DSQ").sort((a, b) => a.arrivee - b.arrivee);
+  const dnf = partants.filter((i) => i.arrivee == null && i.statut === "DNF").sort(parDossard);
+  const dsq = partants.filter((i) => i.statut === "DSQ").sort(parDossard);
+  const enCours = partants.filter((i) => i.arrivee == null && !i.statut).sort(parDossard);
   const avecBulletin = tous.filter((i) => i.bulletin);
-  return { tous, partants, arrives, dnf, enCours, avecBulletin };
+  return { tous, partants, arrives, dnf, dsq, enCours, avecBulletin };
+}
+
+// ── Plusieurs courses en même temps ───────────────────────────
+// C'est le dossard qui dit à quelle course appartient un coureur : deux courses lancées en même temps
+// ne doivent donc pas avoir de dossard en commun.
+export const coursesEnCours = () => state.courses.filter((c) => etatChrono(c).etat === "en-cours")
+  .sort((a, b) => a.chrono.depart - b.chrono.depart);
+
+/** Dossards de cette course (bulletins complets) déjà utilisés par une autre course en cours. */
+export function conflitsDossards(courseId) {
+  const autres = coursesEnCours().filter((c) => c.id !== courseId);
+  if (!autres.length) return [];
+  const conflits = [];
+  inscritsDe(courseId).filter((i) => i.bulletin && i.dossard).forEach((i) => {
+    autres.forEach((c) => {
+      if (inscritsDe(c.id).some((x) => x.depart != null && memeDossard(x.dossard, i.dossard))) conflits.push({ dossard: i.dossard, course: c.nom });
+    });
+  });
+  return conflits;
 }
 
 /** Départ groupé : tous les inscrits dont le bulletin est complet partent à la même heure. */
@@ -102,17 +123,115 @@ export function demarrer(courseId) {
 export function arrivee(courseId, dossard) {
   const c = course(courseId);
   if (etatChrono(c).etat !== "en-cours") return { ok: false, message: "La course n'est pas en cours." };
+  const heure = maintenant();
   const i = inscritsDe(courseId).find((x) => memeDossard(x.dossard, dossard));
-  if (!i) return { ok: false, message: `Dossard ${dossard} inconnu dans cette course.` };
-  if (i.depart == null) return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) n'a pas pris le départ : bulletin incomplet.` };
-  if (i.arrivee != null) return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) est déjà arrivé.` };
-  i.arrivee = maintenant();
+  // Dossard inconnu ou coureur sans bulletin : l'heure de passage est gardée, à rattacher ensuite
+  if (!i) return mettreEnAttente(c, dossard, heure, `Dossard ${dossard} inconnu`);
+  if (i.depart == null) return mettreEnAttente(c, dossard, heure, `Dossard ${dossard} (${nomComplet(i)}) n'avait pas pris le départ`);
+  if (i.arrivee != null && i.statut !== "DSQ") return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) est déjà arrivé.` };
+  if (i.statut === "DSQ") return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) est disqualifié.` };
+  i.arrivee = heure;
   i.statut = null;
+  return { ok: true, message: "", inscrit: i, course: c, termine: verifierFin(c, heure) };
+}
 
-  // Arrêt automatique quand plus personne n'est en course
-  const termine = situation(courseId).enCours.length === 0;
-  if (termine) c.chrono = { ...c.chrono, etat: "arretee", fin: i.arrivee };
-  return { ok: true, message: "", inscrit: i, termine };
+/** Arrivée sur la ligne commune à toutes les courses en cours : le dossard désigne la course. */
+export function arriveeLigne(dossard, courseParDefaut) {
+  const enCours = coursesEnCours();
+  if (!enCours.length) return { ok: false, message: "Aucune course n'est en cours." };
+  const c = enCours.find((x) => inscritsDe(x.id).some((i) => memeDossard(i.dossard, dossard)))
+    || enCours.find((x) => x.id === courseParDefaut) || enCours[enCours.length - 1];
+  return arrivee(c.id, dossard);
+}
+
+function mettreEnAttente(c, dossard, heure, raison) {
+  c.enAttente = [...(c.enAttente || []), { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), dossard: String(dossard), heure, raison }];
+  return { ok: false, attente: true, course: c, message: `${raison} : passage gardé en attente (${c.nom}), à rattacher à un coureur.` };
+}
+
+/** Course en cours où plus personne ne court : elle s'arrête d'elle-même (à l'heure de la dernière arrivée). */
+function verifierFin(c, heure) {
+  if (etatChrono(c).etat !== "en-cours" || situation(c.id).enCours.length) return false;
+  c.chrono = { ...c.chrono, etat: "arretee", fin: heure ?? Math.max(...inscritsDe(c.id).map((i) => i.arrivee ?? 0)) };
+  return true;
+}
+
+// ── Corrections (onglets Chronomètre et Résultats) ────────────
+/** Fait partir un retardataire ou un coureur sans bulletin, avec le départ de sa course. */
+export function fairePartir(i) {
+  const c = course(i.courseId);
+  if (i.depart != null || c?.chrono?.depart == null) return;
+  i.bulletin = true;
+  i.depart = c.chrono.depart;
+  i.statut = etatChrono(c).etat === "arretee" ? "DNF" : null;
+}
+
+/** Donne un temps à un coureur (durée depuis le départ de sa course) : il est classé avec ce temps. */
+export function corrigerTemps(i, ms) {
+  if (course(i.courseId)?.chrono?.depart == null) throw new Error("La course n'a pas encore eu de départ.");
+  fairePartir(i);
+  i.arrivee = i.depart + ms;
+  if (i.statut === "DNF") i.statut = null;
+  i.corrige = true;
+  verifierFin(course(i.courseId));
+}
+
+/** Échange les temps de deux arrivés (ordre de passage mal saisi). */
+export function intervertir(a, b) {
+  [a.arrivee, b.arrivee] = [b.arrivee, a.arrivee];
+  a.corrige = b.corrige = true;
+}
+
+/** Abandon : le coureur perd son arrivée éventuelle. */
+export function abandon(i) {
+  i.arrivee = null;
+  i.statut = "DNF";
+  i.corrige = true;
+  verifierFin(course(i.courseId));
+}
+
+/** Disqualification : le coureur garde son passage mais n'est plus classé. */
+export function disqualifier(i, motif = "") {
+  i.statut = "DSQ";
+  i.motif = motif;
+  i.corrige = true;
+  verifierFin(course(i.courseId));
+}
+
+/** Remet en course (course encore lancée) ; course terminée : abandon s'il n'a pas de temps. */
+export function remettreEnCourse(i) {
+  const c = course(i.courseId);
+  i.arrivee = null;
+  i.motif = "";
+  i.statut = etatChrono(c).etat === "en-cours" ? null : "DNF";
+  i.corrige = true;
+}
+
+/** Rattache un passage en attente à un coureur, qui part au besoin avec sa course. */
+export function rattacher(c, attenteId, i) {
+  const a = (c.enAttente || []).find((x) => x.id === attenteId);
+  if (!a) return { ok: false, message: "Ce passage n'est plus en attente." };
+  if (i.arrivee != null && i.statut !== "DNF") return { ok: false, message: `${nomComplet(i)} a déjà un temps.` };
+  fairePartir(i);
+  i.arrivee = a.heure;
+  i.statut = null;
+  i.corrige = true;
+  c.enAttente = c.enAttente.filter((x) => x.id !== attenteId);
+  verifierFin(c, a.heure);
+  return { ok: true };
+}
+
+export function oublierAttente(c, attenteId) {
+  c.enAttente = (c.enAttente || []).filter((x) => x.id !== attenteId);
+}
+
+/** « 16:49 », « 1:02:03 », « 16:48,7 » → millisecondes ; null si illisible. */
+export function lireDuree(txt) {
+  const m = String(txt ?? "").trim().replace(",", ".").match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
+  if (!m) return null;
+  const [, h = "0", min, s] = m;
+  if (+min >= 60 || +s >= 60) return null;
+  return Math.round(((+h * 60 + +min) * 60 + +s) * 1000);
 }
 
 /** Arrêt manuel : les partants pas encore arrivés passent DNF. */
@@ -136,18 +255,19 @@ export function annulerDerniere(courseId) {
 
 /** Remise à zéro : tous les temps de la course sont effacés. */
 export function reinitialiser(courseId) {
-  inscritsDe(courseId).forEach((i) => { i.depart = null; i.arrivee = null; i.statut = null; });
-  course(courseId).chrono = { etat: "attente", depart: null, fin: null };
+  inscritsDe(courseId).forEach((i) => { i.depart = null; i.arrivee = null; i.statut = null; i.motif = ""; i.corrige = false; });
+  Object.assign(course(courseId), { chrono: { etat: "attente", depart: null, fin: null }, enAttente: [] });
 }
 
 // ── Résultats ─────────────────────────────────────────────────
 function ligne(i, position) {
-  const ms = tempsOfficiel(i); // écart, vitesse, allure et scores d'équipe suivent le temps affiché
-  const dnf = i.statut === "DNF";
+  const dsq = i.statut === "DSQ";
+  const dnf = i.statut === "DNF" || dsq; // « dnf » : non classé (abandon ou disqualifié)
+  const ms = dsq ? null : tempsOfficiel(i); // écart, vitesse, allure et scores d'équipe suivent le temps affiché
   const absent = i.depart == null; // inscrit qui n'a pas pris le départ (seulement dans les écoles / clubs)
   return {
     id: i.id,
-    position: dnf ? "DNF" : position != null ? String(position) : "-",
+    position: dsq ? "DSQ" : dnf ? "DNF" : position != null ? String(position) : "-",
     dossard: i.dossard || "",
     nom: i.nom || "",
     prenom: i.prenom || "",
@@ -160,8 +280,11 @@ function ligne(i, position) {
     sexe: i.sexe || "",
     naissance: i.annee ? String(i.annee) : "",
     ms,
-    temps: dnf ? "DNF" : absent ? "Non partant" : fmtDuree(ms),
+    temps: dsq ? "DSQ" : dnf ? "DNF" : absent ? "Non partant" : fmtDuree(ms),
     dnf,
+    dsq,
+    motif: dsq ? i.motif || "" : "",
+    corrige: !!i.corrige,
     absent,
     enCours: !dnf && !absent && ms == null,
     rangEcole: null,
@@ -237,14 +360,15 @@ function grouper(lignes, cle, champRang) {
  * « t » est le modèle PDF : il fixe la règle du classement par école (voir regleEcoles).
  */
 export function resultatsDe(c, inscrits, t = null) {
-  const { partants, dnf, enCours } = situationDe(inscrits);
-  const arrives = partants.filter((i) => i.arrivee != null).sort((a, b) => duree(a) - duree(b));
+  const { partants, arrives: passes, dnf, dsq, enCours } = situationDe(inscrits);
+  const arrives = [...passes].sort((a, b) => duree(a) - duree(b));
 
   const lArrives = arrives.map((i, k) => ligne(i, k + 1));
   const lDnf = dnf.map((i) => ligne(i));
+  const lDsq = dsq.map((i) => ligne(i));
   const lEnCours = enCours.map((i) => ligne(i));
-  const individuel = [...lArrives, ...lDnf, ...lEnCours];
-  const classes = [...lArrives, ...lDnf];
+  const individuel = [...lArrives, ...lDnf, ...lDsq, ...lEnCours];
+  const classes = [...lArrives, ...lDnf, ...lDsq];
 
   // Par catégorie (les plus jeunes d'abord) et par sexe : rang de chacun dans son groupe
   const anneeMoy = (g) => { const a = g.participants.map((l) => +l.naissance).filter(Boolean); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0; };
@@ -263,7 +387,7 @@ export function resultatsDe(c, inscrits, t = null) {
   // Par club : seuls ceux qui ont un club renseigné (les autres ne forment pas une équipe)
   const clubs = eq.club ? equipes(tous.filter((l) => l.club.trim()), regle, "club", "", "rangClub") : [];
 
-  const morceaux = [`${lArrives.length} classé(s) / ${lDnf.length} DNF / ${partants.length} partant(s)`];
+  const morceaux = [`${lArrives.length} classé(s) / ${lDnf.length} DNF${lDsq.length ? ` / ${lDsq.length} DSQ` : ""} / ${partants.length} partant(s)`];
   if (c?.date) morceaux.push(fmtDate(c.date));
   let info = morceaux.join("  |  ");
   if (c?.distance) info += ` — ${String(c.distance).replace(".", ",")} km`;

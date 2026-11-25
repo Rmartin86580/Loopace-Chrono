@@ -349,6 +349,24 @@ select.input { cursor: pointer; }
 .arrival__msg { min-height: 1.5em; margin-top: .55rem; font-size: .9rem; font-weight: 600; }
 .arrival__msg.is-ok { color: var(--accent); }
 .arrival__msg.is-err { color: var(--danger); }
+.arrival__msg.is-warn { color: var(--warn); }
+
+/* Courses lancées en même temps */
+.lancees { display: flex; flex-wrap: wrap; gap: .6rem; margin: -6px 0 20px; }
+.lancee {
+  display: inline-flex; align-items: center; gap: .6rem; padding: .5em 1em; border-radius: 999px;
+  border: 1px solid rgba(var(--danger-rgb), .45); background: rgba(var(--danger-rgb), .06); color: var(--text);
+  font: inherit; font-size: .86rem; font-weight: 600; cursor: pointer;
+}
+.lancee b { font-variant-numeric: tabular-nums; color: var(--danger); }
+.lancee.is-on { border-color: #B7E532; background: rgba(var(--accent-rgb), .12); }
+/* Passages en attente (dossard inconnu, coureur sans bulletin) */
+.attente { margin-bottom: .8rem; padding: .7rem .9rem; border: 1px solid var(--warn); border-radius: 12px; background: rgba(245, 196, 81, .07); }
+.attente h3 { margin: 0 0 .4rem; font-size: .9rem; color: var(--warn); }
+.attente__ligne { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .3rem 0; font-size: .88rem; }
+.corrige { color: var(--warn); font-weight: 700; margin-left: .3em; cursor: help; }
+.runner-list li[data-id] { cursor: pointer; }
+.runner-list li[data-id]:hover { background: rgba(var(--accent-rgb), .06); }
 .chrono-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; padding-top: .9rem; border-top: 1px solid var(--line); text-align: left; }
 .chrono-foot small { display: block; font-size: .74rem; color: var(--muted); white-space: nowrap; }
 .chrono-foot b { font: 800 1.6rem/1.1 var(--font-body); font-variant-numeric: tabular-nums; }

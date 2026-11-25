@@ -222,7 +222,7 @@ export function genererPdf({ course, theme, res }) {
         ...optionsTable, ...podium,
         startY: y + 20,
         ...tableau([{ titre: rangTitre, largeur: 40 }, { titre: "#Gén.", largeur: 36 }],
-          g.participants.map((l) => ({ tete: [String(rang(l) ?? (l.dnf ? "DNF" : "-")), l.position], l })), sans, forcees),
+          g.participants.map((l) => ({ tete: [String(rang(l) ?? (l.dnf ? l.position : "-")), l.position], l })), sans, forcees),
       });
       y = doc.lastAutoTable.finalY;
     });

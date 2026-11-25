@@ -59,6 +59,16 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    fin de course ; **Administration → Options** permet de couper le son, de régler son volume et de le tester
    (réglages mémorisés sur ce poste).
    « Annuler la dernière arrivée » corrige une erreur de saisie.
+   **Corrections** : un clic sur un coureur (classement, liste « En course » ou onglet Résultats) ouvre sa fiche :
+   temps à corriger (« 16:48 », « 1:02:30 »), interversion avec un autre dossard, abandon (DNF), disqualification
+   (DSQ, avec un motif) ou remise en course. Un ✎ signale ce qui a été corrigé à la main ; un disqualifié n'est plus
+   classé et apparaît après les abandons (« Disqualifié » dans l'export FFA).
+   **Passages en attente** : un dossard inconnu, ou celui d'un coureur parti sans bulletin, n'est pas perdu : son heure
+   de passage est gardée et se rattache ensuite à un inscrit (qui part alors avec la course) ou à un nouveau participant.
+   **Plusieurs courses en même temps** : on peut lancer une course pendant qu'une autre tourne. La saisie des
+   dossards vaut pour toutes : le dossard désigne la course, et le temps part de son propre départ. Deux courses
+   lancées ensemble doivent avoir des dossards différents (le départ est refusé sinon). Les courses lancées
+   s'affichent en pastilles avec leur chrono ; ARRÊT et remise à zéro ne concernent que la course choisie.
    Les temps sont pris sur une horloge interne : si Windows corrige son heure pendant la course, ils ne
    bougent pas (seul un grand écart, après une mise en veille, est recalé sur l'heure du PC). Pendant une
    course, et tant que l'écran public est affiché, l'écran ne se met pas en veille.

@@ -1,6 +1,6 @@
 // Import / export Excel avec SheetJS (chargé par index.html : window.XLSX).
 
-import { codeCategorie } from "./pdf.js?v=22";
+import { codeCategorie } from "./pdf.js?v=23";
 
 function lib() {
   if (!window.XLSX) throw new Error("La bibliothèque Excel n'est pas chargée (connexion nécessaire au premier lancement).");
@@ -133,10 +133,10 @@ export function exporterResultats(nomFichier, res) {
 export function exporterFFA(nomFichier, c, res) {
   const code = (cat) => (cat ? codeCategorie(cat.replace(/\s+[FM]$/, "")) : ""); // « Minimes F » → MI
   const lignes = res.individuel.filter((l) => !l.enCours).map((l) => [
-    l.dnf ? "Abandon" : Number(l.position), l.dossard, l.nom.toUpperCase(), l.prenom, l.sexe, l.naissance ? Number(l.naissance) : "",
+    l.dsq ? "Disqualifié" : l.dnf ? "Abandon" : Number(l.position), l.dossard, l.nom.toUpperCase(), l.prenom, l.sexe, l.naissance ? Number(l.naissance) : "",
     code(l.categorie), l.dnf ? "" : l.rangCatSexe ?? "", l.nationalite, l.club, l.departement, l.licence, l.dnf ? "" : l.temps,
   ]);
-  const arrivants = lignes.filter((r) => r[0] !== "Abandon").length;
+  const arrivants = lignes.filter((r) => typeof r[0] === "number").length;
   const date = c.date ? c.date.split("-").reverse().join("/") : "";
   ecrire(nomFichier, [
     {
@@ -149,7 +149,7 @@ export function exporterFFA(nomFichier, c, res) {
       largeurs: [20, 50],
       lignes: [
         ["Épreuve", c.nom], ["Date", date], ["Lieu", c.lieu || ""], ["Distance (km)", Number(c.distance) || ""],
-        ["Arrivants", arrivants], ["Abandons", lignes.length - arrivants],
+        ["Arrivants", arrivants], ["Abandons et disqualifiés", lignes.length - arrivants],
         ["Chronométrage", "Manuel, temps arrondis à la seconde supérieure"], ["Logiciel", "Loopace Chrono"],
       ],
     },

@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
     // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
@@ -29,7 +29,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=22"></script>
+  <script type="module" src="js/app.js?v=23"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -150,6 +150,8 @@
           <button class="btn btn--ghost" id="btnEcran"><svg class="ico"><use href="#i-screen"/></svg>Écran public</button>
         </div>
       </div>
+      <!-- Courses lancées en même temps : la saisie des dossards vaut pour toutes -->
+      <div class="lancees" id="coursesLancees" hidden></div>
 
       <div class="chrono-grid">
         <div class="card chrono-card">
@@ -174,8 +176,10 @@
 
         <div class="card chrono-classement">
           <div class="card__head"><h2>Classement</h2><span class="meta" id="nbClasses"></span></div>
+          <div class="attente" id="enAttente" hidden></div>
+          <p class="meta">Cliquez sur un coureur pour corriger son temps ou son statut.</p>
           <div class="table-wrap table-wrap--tall" id="scrollClassement">
-            <table class="table table--nowrap">
+            <table class="table table--nowrap table--hover">
               <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>École / Club</th><th>Arrivée</th><th class="r">Temps</th></tr></thead>
               <tbody id="tableArrivees"></tbody>
             </table>
@@ -212,7 +216,7 @@
           <button class="seg__btn" data-seg="clubs" role="tab">Par club</button>
         </div>
         <div id="segIndividuel" class="table-wrap equipes">
-          <table class="table table--nowrap">
+          <table class="table table--nowrap table--hover">
             <thead><tr><th>#</th><th>Dossard</th><th>Nom</th><th>Prénom</th><th class="col-ecole">École</th><th class="col-club">Club</th><th>Catégorie</th><th>Sexe</th><th>Né(e)</th><th class="r">Temps</th></tr></thead>
             <tbody id="tableResultats"></tbody>
           </table>
@@ -674,6 +678,50 @@
         <button type="button" class="btn" id="btnEnregistrerBareme"><svg class="ico"><use href="#i-check"/></svg>Enregistrer et recalculer</button>
       </div>
     </div>
+  </dialog>
+
+  <dialog class="dlg" id="dlgCorrection">
+    <form method="dialog" class="dlg__body" id="formCorrection">
+      <h3 id="correctionTitre">Corriger</h3>
+      <p class="meta" id="correctionInfo"></p>
+      <div class="form-grid">
+        <label class="field"><span>Statut</span><select class="input" name="statut">
+          <option value="arrive">Arrivé, avec ce temps</option>
+          <option value="encours">En course</option>
+          <option value="DNF">Abandon (DNF)</option>
+          <option value="DSQ">Disqualifié (DSQ)</option>
+        </select></label>
+        <label class="field" data-si="arrive"><span>Temps <em class="field__hint">ex : 16:48 ou 1:02:30</em></span><input class="input mono" name="temps" autocomplete="off"></label>
+        <label class="field" data-si="arrive"><span>Intervertir avec le dossard <em class="field__hint">optionnel</em></span><input class="input" name="echange" inputmode="numeric" autocomplete="off" placeholder="ex : 112"></label>
+        <label class="field field--full" data-si="DSQ"><span>Motif <em class="field__hint">optionnel</em></span><input class="input" name="motif" maxlength="120" placeholder="ex : parcours écourté"></label>
+      </div>
+      <p class="dlg__error" id="erreurCorrection"></p>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dlg" id="dlgRattacher">
+    <form method="dialog" class="dlg__body" id="formRattacher">
+      <h3>Passage en attente</h3>
+      <p class="meta" id="rattacherInfo"></p>
+      <label class="field"><span>Ce passage est celui de</span><select class="input" name="coureur"></select></label>
+      <div class="form-grid" id="rattacherNouveau" hidden>
+        <label class="field"><span>Nom *</span><input class="input" name="nom" maxlength="100"></label>
+        <label class="field"><span>Prénom</span><input class="input" name="prenom" maxlength="100"></label>
+        <label class="field"><span>Sexe</span><select class="input" name="sexe"><option value="F">F</option><option value="M">M</option></select></label>
+        <label class="field"><span>Année de naissance</span><input class="input" name="annee" inputmode="numeric" maxlength="4"></label>
+        <label class="field field--full"><span>École ou club</span><input class="input" name="equipe" maxlength="200"></label>
+      </div>
+      <p class="dlg__error" id="erreurRattacher"></p>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost btn--danger dlg__left" data-valeur="oublier">Supprimer ce passage</button>
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Plus tard</button>
+        <button class="btn" value="ok">Rattacher</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog class="dlg" id="dlgDiplomes">
