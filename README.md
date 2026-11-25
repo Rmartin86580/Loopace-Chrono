@@ -128,6 +128,27 @@ python -m http.server 5520
 
 Puis ouvrir http://localhost:5520 (l'application a besoin de http, pas d'un simple double-clic sur `index.html`).
 
+## Version stable et version de test
+
+| | Branche | Site |
+|---|---|---|
+| **Stable** (celle des courses) | `main` de ce dépôt | https://rmartin86580.github.io/Loopace-Chrono/ |
+| **Test** (nouveautés à essayer) | `dev`, publiée sur le dépôt `Loopace-Chrono-Test` | https://rmartin86580.github.io/Loopace-Chrono-Test/ |
+
+- Les nouveautés se développent sur `dev` et se publient sur le site de test : `git push test dev:main`.
+- La version de test se reconnaît toute seule à son adresse (« Loopace-Chrono-Test ») : bandeau orange
+  « VERSION DE TEST », titre [TEST], appli installée « Loopace Chrono TEST », et surtout **ses propres données**
+  (base, cache hors ligne, fichiers `Loopace_Chrono_TEST_…` de la sauvegarde automatique). Les deux sites ont la
+  même adresse de base, `rmartin86580.github.io`, que le navigateur utilise pour ranger les données : sans
+  cette séparation, la version de test lirait et modifierait les courses de la stable.
+- Pour tester avec de vraies données : exporter une sauvegarde depuis la stable, la restaurer dans la version de test.
+- Une nouveauté validée passe en stable : entrée du `CHANGELOG.md` validée, `dev` fusionnée dans `main`, puis
+  `git push origin main`.
+
+Mise en place du dépôt de test (une fois) : créer sur GitHub le dépôt public vide `Loopace-Chrono-Test`, puis
+`git remote add test https://github.com/Rmartin86580/Loopace-Chrono-Test.git` et `git push test dev:main`, et
+dans ses Settings → Pages : « Deploy from a branch », `main`, `/ (root)`.
+
 ## Mettre le site en ligne (GitHub Pages)
 
 Dépôt : https://github.com/Rmartin86580/Loopace-Chrono
