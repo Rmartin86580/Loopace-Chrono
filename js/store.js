@@ -23,6 +23,7 @@ let db = null;
 export let state = etatVide();
 const canal = "BroadcastChannel" in window ? new BroadcastChannel(CANAL) : null;
 const abonnes = new Set();
+const apresSauvegarde = new Set();
 
 function ouvrir() {
   return new Promise((resolve, reject) => {
@@ -56,6 +57,8 @@ async function lireEtat() {
 export async function init() {
   db = await ouvrir();
   state = await lireEtat();
+  // Demande au navigateur de ne jamais effacer ces données de lui-même (place disque, nettoyage)
+  navigator.storage?.persist?.().catch(() => {});
   if (canal) {
     canal.onmessage = async (ev) => {
       if (ev.data?.type !== "maj") return;
@@ -70,11 +73,22 @@ export function onExterne(fn) { abonnes.add(fn); }
 
 export function prevenir(quoi = "etat") { canal?.postMessage({ type: "maj", quoi }); }
 
+/** Appelé après chaque enregistrement de cet onglet (sauvegarde automatique dans un dossier). */
+export function onSauve(fn) { apresSauvegarde.add(fn); }
+
 /** Enregistre l'état courant et prévient les autres onglets. */
 export async function sauver() {
   await requete("kv", "readwrite", (s) => s.put(state, "etat"));
   prevenir("etat");
+  apresSauvegarde.forEach((fn) => fn());
 }
+
+/** Petites valeurs rangées à côté de l'état (ex. le dossier de sauvegarde automatique). */
+export const reglages = {
+  lire: (cle) => requete("kv", "readonly", (s) => s.get(cle)),
+  ecrire: (cle, v) => requete("kv", "readwrite", (s) => s.put(v, cle)),
+  effacer: (cle) => requete("kv", "readwrite", (s) => s.delete(cle)),
+};
 
 export async function remplacer(nouvelEtat) {
   state = nouvelEtat;
@@ -86,8 +100,8 @@ export async function remplacer(nouvelEtat) {
 export const archives = {
   lister: () => requete("archives", "readonly", (s) => s.getAll())
     .then((l) => l.sort((a, b) => b.date - a.date)),
-  ajouter: (a) => requete("archives", "readwrite", (s) => s.put(a)).then(() => prevenir("archives")),
-  supprimer: (id) => requete("archives", "readwrite", (s) => s.delete(id)).then(() => prevenir("archives")),
+  ajouter: (a) => requete("archives", "readwrite", (s) => s.put(a)).then(() => { prevenir("archives"); apresSauvegarde.forEach((fn) => fn()); }),
+  supprimer: (id) => requete("archives", "readwrite", (s) => s.delete(id)).then(() => { prevenir("archives"); apresSauvegarde.forEach((fn) => fn()); }),
 };
 
 // ── Accès pratiques ───────────────────────────────────────────

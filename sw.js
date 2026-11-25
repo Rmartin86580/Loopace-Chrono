@@ -1,10 +1,10 @@
 // Service worker : garde l'application et ses bibliothèques en cache pour chronométrer sans réseau.
 // Fichiers du site : réseau d'abord (mises à jour), cache si hors ligne. Bibliothèques CDN (versions figées) : cache d'abord.
 
-const CACHE = "loopace-chrono-v18";
+const CACHE = "loopace-chrono-v19";
 const FICHIERS = [
-  "./", "index.html", "ecran.html", "styles.css?v=18", "ecran.css?v=18",
-  "js/app.js?v=18", "js/ecran.js?v=18", "js/store.js?v=18", "js/calc.js?v=18", "js/excel.js?v=18", "js/pdf.js?v=18",
+  "./", "index.html", "ecran.html", "styles.css?v=19", "ecran.css?v=19",
+  "js/app.js?v=19", "js/ecran.js?v=19", "js/store.js?v=19", "js/calc.js?v=19", "js/excel.js?v=19", "js/pdf.js?v=19", "js/sauvegarde.js?v=19",
   "manifest.webmanifest", "baremes.json",
   "assets/loopace-logo-clair.png", "assets/loopace-logo-sombre.png",
   "assets/chrono-app-32.png", "assets/chrono-app-180.png", "assets/chrono-app-192.png", "assets/chrono-app-512.png", "assets/chrono-app-maskable-512.png",

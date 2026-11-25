@@ -1,10 +1,10 @@
 // Écran public : grand chronomètre et classement en direct de la course choisie dans l'onglet Chronomètre.
 // Lecture seule ; il se met à jour quand l'application principale enregistre (BroadcastChannel).
 
-import * as store from "./store.js?v=18";
-import { course } from "./store.js?v=18";
-import * as calc from "./calc.js?v=18";
-import { fmtDuree, nomComplet, compareDossard } from "./calc.js?v=18";
+import * as store from "./store.js?v=19";
+import { course } from "./store.js?v=19";
+import * as calc from "./calc.js?v=19";
+import { fmtDuree, nomComplet, compareDossard } from "./calc.js?v=19";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -35,7 +35,7 @@ function rendre() {
   const lignes = [...s.arrives.map((i, k) => ({ i, pos: k + 1 })), ...s.dnf.map((i) => ({ i, pos: null }))];
   $("#ecranClassement").innerHTML = lignes.map(({ i, pos }) => `<tr class="${pos == null ? "is-dnf" : pos <= 3 ? `podium podium--${pos}` : ""}">
       <td><b>${pos ?? "DNF"}</b></td><td><b>${esc(i.dossard)}</b></td><td>${esc(nomComplet(i))}</td><td>${esc(calc.equipeAffichee(i, eq))}</td>
-      <td class="r mono"><b>${pos == null ? "DNF" : fmtDuree(calc.duree(i))}</b></td></tr>`).join("");
+      <td class="r mono"><b>${pos == null ? "DNF" : fmtDuree(calc.tempsOfficiel(i))}</b></td></tr>`).join("");
   $("#ecranListeEnCours").innerHTML = attente.map((i) => `<li><b>${esc(i.dossard) || "—"}</b> ${esc(nomComplet(i))}</li>`).join("");
 
   // Nouvelle arrivée : on montre le bas du classement ; course terminée : défilement automatique
@@ -85,3 +85,15 @@ store.onExterne((quoi) => { if (quoi === "selection") lireSelection(); rendre();
 window.addEventListener("storage", (e) => { if (e.key === "loopace-chrono-course") { lireSelection(); rendre(); } });
 setInterval(tic, 250);
 rendre();
+
+// L'écran public reste allumé tant qu'il est affiché (télé, vidéoprojecteur)
+let verrou = null;
+async function garderAllume() {
+  if (verrou || document.visibilityState !== "visible" || !navigator.wakeLock) return;
+  try {
+    verrou = await navigator.wakeLock.request("screen");
+    verrou.addEventListener("release", () => { verrou = null; });
+  } catch { /* refusé : l'écran suivra les réglages de veille du PC */ }
+}
+document.addEventListener("visibilitychange", garderAllume);
+garderAllume();

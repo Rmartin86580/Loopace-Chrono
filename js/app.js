@@ -1,11 +1,12 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=18";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=18";
-import * as calc from "./calc.js?v=18";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=18";
-import * as excel from "./excel.js?v=18";
-import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=18";
+import * as store from "./store.js?v=19";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=19";
+import * as calc from "./calc.js?v=19";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=19";
+import * as excel from "./excel.js?v=19";
+import * as sauvegarde from "./sauvegarde.js?v=19";
+import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=19";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -24,13 +25,19 @@ function toast(message, type = "ok") {
   setTimeout(() => el.remove(), 4300);
 }
 
-function confirmer(titre, texte, { oui = "Confirmer", danger = false } = {}) {
+/** Question à deux réponses : renvoie « oui », « non » ou « annuler » (Échap). */
+function demander(titre, texte, { oui = "Confirmer", non = "Annuler", danger = false } = {}) {
   const dlg = $("#dlgConfirm");
   $("#confirmTitre").textContent = titre;
   $("#confirmTexte").textContent = texte;
   $("#confirmOui").textContent = oui;
+  $("#confirmNon").textContent = non;
   $("#confirmOui").classList.toggle("btn--stop", danger);
-  return ouvrirDialogue(dlg).then((v) => v === "oui");
+  return ouvrirDialogue(dlg);
+}
+
+function confirmer(titre, texte, opts) {
+  return demander(titre, texte, opts).then((v) => v === "oui");
 }
 
 /**
@@ -90,7 +97,24 @@ function naviguer() {
 function rendre() {
   ({ courses: rendreCourses, chrono: rendreChrono, resultats: rendreResultats, archives: rendreArchives, admin: rendreAdmin })[vue]();
   $("#liveDot").hidden = !state.courses.some((c) => calc.etatChrono(c).etat === "en-cours");
+  gererVeille();
 }
+
+// Pendant une course, l'écran (et donc le PC) ne se met pas en veille
+let verrouVeille = null;
+let demandeVeille = false;
+async function gererVeille() {
+  const enCourse = state.courses.some((c) => calc.etatChrono(c).etat === "en-cours");
+  if (!enCourse) { verrouVeille?.release().catch(() => {}); verrouVeille = null; return; }
+  if (verrouVeille || demandeVeille || document.visibilityState !== "visible" || !navigator.wakeLock) return;
+  demandeVeille = true;
+  try {
+    verrouVeille = await navigator.wakeLock.request("screen");
+    verrouVeille.addEventListener("release", () => { verrouVeille = null; });
+  } catch { /* refusé (batterie faible…) : sans conséquence sur le chrono */ }
+  demandeVeille = false;
+}
+document.addEventListener("visibilitychange", gererVeille);
 
 // ══════════════════════════════════════════════════════════════
 // COURSES / PARTICIPANTS
@@ -143,7 +167,7 @@ function rendreCourses() {
       <span class="course-item__meta">${esc(meta) || "&nbsp;"}</span>
       <span class="course-item__foot"><span>${calc.nbInscrits(c.id)} inscrit(s)</span><span class="chip chip--${etat}">${ETATS[etat]}</span></span>
     </button></li>`;
-  }).join("") : `<li class="muted-li">Aucune course pour l'instant.</li>`;
+  }).join("") : `<li class="muted-li">Aucune course pour l'instant.${sauvegarde.lireEtat().statut === "aucun" ? ` Vos données ont disparu ? <a href="#admin">Administration → Sauvegarde automatique</a> → « Choisir le dossier » pour les retrouver.` : ""}</li>`;
 
   const c = course(courseSel);
   $("#videCourse").hidden = !!c;
@@ -700,7 +724,7 @@ function rendreChrono() {
   $("#nbClasses").textContent = s ? `${s.arrives.length} arrivé(s)${s.dnf.length ? ` · ${s.dnf.length} DNF` : ""}` : "";
   $("#tableArrivees").innerHTML = lignes.length ? lignes.map(({ i, pos }) => `<tr class="${pos == null ? "is-dnf" : pos <= 3 ? `podium podium--${pos}` : ""}">
       <td><b>${pos ?? "DNF"}</b></td><td><b>${esc(i.dossard)}</b></td><td>${esc(nomComplet(i))}</td><td>${esc(calc.equipeAffichee(i, eqChrono))}</td>
-      <td>${fmtHeure(i.arrivee) || "-"}</td><td class="r mono"><b>${pos == null ? "DNF" : fmtDuree(calc.duree(i))}</b></td></tr>`).join("")
+      <td>${fmtHeure(i.arrivee) || "-"}</td><td class="r mono"><b>${pos == null ? "DNF" : fmtDuree(calc.tempsOfficiel(i))}</b></td></tr>`).join("")
     : `<tr><td colspan="6" class="muted c">Les arrivées s'afficheront ici.</td></tr>`;
   const sc = $("#scrollClassement");
   sc.scrollTop = sc.scrollHeight;
@@ -729,6 +753,7 @@ $("#btnDepart").addEventListener("click", async () => {
   if (!nb) { toast("Aucun participant n'a de bulletin complet : personne ne peut partir.", "warn"); return; }
   calc.demarrer(c.id);
   await store.sauver();
+  sauvegarde.copie();
   rendre();
   $("#saisieDossard").focus();
   toast(`Départ donné : ${nb} partant(s).`);
@@ -742,6 +767,7 @@ $("#btnArret").addEventListener("click", async () => {
   if (!ok) return;
   calc.arreter(c.id);
   await store.sauver();
+  sauvegarde.copie();
   rendre();
 });
 
@@ -858,10 +884,11 @@ $("#formArrivee").addEventListener("submit", async (e) => {
     return;
   }
   await store.sauver();
-  msg.textContent = `✓ ${r.inscrit.dossard} — ${nomComplet(r.inscrit)} — ${fmtDuree(calc.duree(r.inscrit))}`;
+  msg.textContent = `✓ ${r.inscrit.dossard} — ${nomComplet(r.inscrit)} — ${fmtDuree(calc.tempsOfficiel(r.inscrit))}`;
   msg.className = "arrival__msg is-ok";
   rendre();
   bip(r.termine ? BIP_FIN : BIP_OK);
+  if (r.termine) sauvegarde.copie();
   if (r.termine) toast("Tous les participants sont arrivés : chronomètre arrêté automatiquement.");
 });
 
@@ -988,6 +1015,7 @@ $("#btnArchiver").addEventListener("click", async () => {
     await store.archives.ajouter({ id, nom: c.nom, fichier: nomFichier("", c.nom, "pdf"), date: Date.now(), taille: blob.size, blob, donnees });
     archiveSel = id;
     await supprimerCourse(c.id);
+    sauvegarde.copie();
     if (courseSel === c.id) courseSel = null;
     rendre();
     toast("Course archivée : retrouvez-la dans l'onglet Archives.");
@@ -1186,7 +1214,81 @@ function rendreAdmin() {
     </button>`;
   }).join("");
   if (!baremeModifie) chargerBareme();
+  afficherSauvegarde();
+  navigator.storage?.persisted?.().then((oui) => {
+    $("#admStockage").textContent = oui ? "Données de ce navigateur protégées : il ne les effacera pas de lui-même."
+      : "Le navigateur n'a pas encore protégé ses données (il le fait souvent une fois l'appli installée) : la sauvegarde automatique est d'autant plus utile.";
+  }).catch(() => {});
 }
+
+// ── Sauvegarde automatique dans un dossier du PC ─────────────
+function afficherSauvegarde(e = sauvegarde.lireEtat()) {
+  const heure = e.heure ? new Date(e.heure).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
+  const pastille = {
+    aucun: ["Sauvegarde auto : non", "Aucun dossier de sauvegarde : cliquez pour en choisir un"],
+    ok: [heure ? `Sauvegardé à ${heure}` : "Sauvegarde auto active", `Dossier « ${e.nom} »`],
+    pause: ["Sauvegarde en pause", "Cliquez pour autoriser l'écriture dans le dossier de sauvegarde"],
+    erreur: ["Sauvegarde impossible", e.erreur],
+  }[e.statut];
+  const b = $("#etatSauvegarde");
+  b.hidden = !pastille;
+  if (pastille) {
+    b.className = `sauve sauve--${e.statut}`;
+    b.querySelector(".sauve__txt").textContent = pastille[0];
+    b.title = pastille[1];
+  }
+
+  const textes = {
+    impossible: "Ce navigateur ne sait pas écrire dans un dossier : utilisez Chrome ou Edge, ou exportez une sauvegarde à la main ci-dessous.",
+    aucun: "Aucun dossier choisi : les données ne sont que dans ce navigateur.",
+    ok: `Dossier « ${e.nom} »${heure ? ` · dernière sauvegarde à ${new Date(e.heure).toLocaleTimeString("fr-FR")}` : ""}.`,
+    pause: `Dossier « ${e.nom} » · en pause : le navigateur demande votre accord pour y écrire.`,
+    erreur: `Dossier « ${e.nom} » · impossible d'écrire (clé USB retirée, dossier supprimé ?) : ${e.erreur}`,
+  };
+  const etatAdm = $("#admSauveEtat");
+  etatAdm.textContent = textes[e.statut];
+  etatAdm.className = `sauve-etat sauve-etat--${e.statut}`;
+  $("#btnDossierSauvegarde").hidden = e.statut === "impossible";
+  $("#btnDossierSauvegarde span").textContent = e.statut === "aucun" ? "Choisir le dossier" : "Changer de dossier";
+  $("#btnAutoriserSauvegarde").hidden = e.statut !== "pause";
+  $("#btnArretSauvegarde").hidden = !["ok", "pause", "erreur"].includes(e.statut);
+}
+
+async function choisirDossierSauvegarde() {
+  let choix;
+  try { choix = await sauvegarde.choisir(); } catch (err) {
+    if (err?.name !== "AbortError") toast(`Dossier inaccessible : ${err.message}`, "err");
+    return;
+  }
+  const { rep, existante, texte } = choix;
+  let remplacee = null;
+  if (existante) {
+    const vide = !state.courses.length && !(await store.archives.lister()).length;
+    const resume = `${existante.courses.length} course(s), ${(existante.archives || []).length} archive(s), enregistrée le ${new Date(existante.exporte).toLocaleString("fr-FR")}`;
+    const r = await demander("Sauvegarde trouvée dans ce dossier", vide
+      ? `Ce dossier contient une sauvegarde (${resume}).\n\nLa restaurer sur ce poste ?`
+      : `Ce dossier contient déjà une sauvegarde (${resume}).\n\nLa restaurer à la place des données de ce poste ? Sinon, les données de ce poste y seront sauvegardées (l'ancienne sauvegarde est gardée dans « Historique »).`,
+    { oui: "Restaurer", non: vide ? "Ne pas restaurer" : "Garder ce poste" });
+    if (r === "annuler") return;
+    if (r === "oui") await appliquerSauvegarde(existante);
+    else remplacee = texte;
+  }
+  try { await sauvegarde.activer(rep, remplacee); } catch (err) { toast(`Dossier inaccessible : ${err.message}`, "err"); return; }
+  toast(`Sauvegarde automatique active dans « ${rep.name} ».`);
+  rendre();
+}
+
+$("#btnDossierSauvegarde").addEventListener("click", choisirDossierSauvegarde);
+$("#btnAutoriserSauvegarde").addEventListener("click", () => sauvegarde.autoriser());
+$("#btnArretSauvegarde").addEventListener("click", async () => {
+  const ok = await confirmer("Arrêter la sauvegarde automatique", "Ne plus sauvegarder dans ce dossier ?\n\nLes fichiers déjà enregistrés y restent.", { oui: "Arrêter" });
+  if (ok) await sauvegarde.desactiver();
+});
+$("#etatSauvegarde").addEventListener("click", () => {
+  if (sauvegarde.lireEtat().statut === "pause") sauvegarde.autoriser();
+  else location.hash = "#admin";
+});
+sauvegarde.onEtat(afficherSauvegarde);
 
 // ── Mise à jour des catégories automatiques ──────────────────
 // On édite en années de naissance pour la saison en cours (c'est ce que donnent les règlements),
@@ -1679,20 +1781,25 @@ $("#btnModele").addEventListener("click", () => {
 });
 
 // La sauvegarde contient tout, archives comprises (leur PDF y est encodé en texte)
-const blobEnTexte = (blob) => new Promise((resolve, reject) => {
-  const lecteur = new FileReader();
-  lecteur.onload = () => resolve(lecteur.result);
-  lecteur.onerror = () => reject(lecteur.error);
-  lecteur.readAsDataURL(blob);
-});
 const texteEnBlob = (texte) => fetch(texte).then((r) => r.blob());
 
 $("#btnSauvegarde").addEventListener("click", async () => {
-  const archives = await Promise.all((await store.archives.lister()).map(async ({ blob, ...a }) => ({ ...a, pdf: await blobEnTexte(blob) })));
-  const blob = new Blob([JSON.stringify({ application: "loopace-chrono", exporte: new Date().toISOString(), ...state, archives }, null, 1)], { type: "application/json" });
+  const data = await sauvegarde.contenu();
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
   telecharger(blob, nomFichier("Sauvegarde_", "Loopace_Chrono", "json"));
-  toast(`Sauvegarde exportée : ${state.courses.length} course(s), ${archives.length} archive(s).`);
+  toast(`Sauvegarde exportée : ${state.courses.length} course(s), ${data.archives.length} archive(s).`);
 });
+
+/** Remplace les données de ce poste par une sauvegarde ; ses archives s'ajoutent à celles déjà présentes. */
+async function appliquerSauvegarde(data) {
+  await store.remplacer({ version: 1, courses: data.courses, inscrits: data.inscrits, themes: data.themes || [], baremes: data.baremes || {}, baremesVersion: data.baremesVersion });
+  for (const { pdf, ...a } of Array.isArray(data.archives) ? data.archives : []) {
+    if (a.id && pdf) await store.archives.ajouter({ ...a, blob: await texteEnBlob(pdf) });
+  }
+  baremeModifie = false;
+  courseSel = chronoSel = resultatsSel = null;
+  rendre();
+}
 
 $("#btnRestaurer").addEventListener("click", () => $("#fichierRestaurer").click());
 $("#fichierRestaurer").addEventListener("change", async (e) => {
@@ -1700,20 +1807,12 @@ $("#fichierRestaurer").addEventListener("change", async (e) => {
   e.target.value = "";
   if (!fichier) return;
   let data;
-  try {
-    data = JSON.parse(await fichier.text());
-    if (data.application !== "loopace-chrono" || !Array.isArray(data.courses) || !Array.isArray(data.inscrits)) throw new Error();
-  } catch { toast("Ce fichier n'est pas une sauvegarde Loopace Chrono.", "err"); return; }
+  try { data = sauvegarde.lire(await fichier.text()); } catch { toast("Ce fichier n'est pas une sauvegarde Loopace Chrono.", "err"); return; }
   const archives = Array.isArray(data.archives) ? data.archives : [];
   const ok = await confirmer("Restaurer une sauvegarde", `Remplacer les courses et réglages actuels par la sauvegarde (${data.courses.length} course(s), ${data.inscrits.length} participant(s), ${archives.length} archive(s)) ?\n\nLes archives de la sauvegarde sont ajoutées à celles déjà présentes.`, { oui: "Restaurer", danger: true });
   if (!ok) return;
-  await store.remplacer({ version: 1, courses: data.courses, inscrits: data.inscrits, themes: data.themes || [], baremes: data.baremes || {} });
-  for (const { pdf, ...a } of archives) {
-    if (a.id && pdf) await store.archives.ajouter({ ...a, blob: await texteEnBlob(pdf) });
-  }
-  baremeModifie = false;
-  courseSel = chronoSel = resultatsSel = null;
-  rendre();
+  await appliquerSauvegarde(data);
+  sauvegarde.copie();
   toast("Sauvegarde restaurée.");
 });
 
@@ -1782,6 +1881,8 @@ try {
   throw err;
 }
 store.onExterne((quoi) => { if (quoi !== "selection") rendre(); });
+await sauvegarde.init().catch(() => {});
+afficherSauvegarde();
 
 /**
  * Mise à jour automatique des barèmes de catégories : le site publie baremes.json ; à chaque lancement

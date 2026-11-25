@@ -16,14 +16,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link rel="stylesheet" href="styles.css?v=19">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}</script>
   <!-- Excel (SheetJS) et PDF (jsPDF + AutoTable) : mis en cache par le service worker pour fonctionner hors ligne -->
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=18"></script>
+  <script type="module" src="js/app.js?v=19"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -60,6 +60,7 @@
         <a href="#archives" data-tab="archives">Archives</a>
         <a href="#admin" data-tab="admin">Administration</a>
       </nav>
+      <button type="button" class="sauve" id="etatSauvegarde" hidden><span class="sauve__txt"></span></button>
       <button type="button" class="btn btn--sm nav__install" id="btnInstaller" hidden><svg class="ico"><use href="#i-download"/></svg>Installer l'appli</button>
       <button type="button" class="theme-toggle" id="themeToggle" aria-label="Changer de thème"><svg class="theme-toggle__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg><svg class="theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg></button>
     </div>
@@ -293,8 +294,19 @@
           <button class="btn btn--ghost btn--sm" id="btnModele"><svg class="ico"><use href="#i-download"/></svg>Télécharger le modèle</button>
         </div>
         <div class="card">
+          <h2>Sauvegarde automatique</h2>
+          <p class="meta">L'application enregistre toute seule une copie complète (courses, réglages, archives) dans un dossier de ce PC : quelques secondes après chaque modification, plus une copie datée au départ et à la fin de chaque course, à l'archivage et chaque jour (les 30 dernières, dans le sous-dossier « Historique »). Un dossier OneDrive ou une clé USB garde en plus une copie hors du PC.</p>
+          <p class="sauve-etat" id="admSauveEtat"></p>
+          <div class="actions">
+            <button class="btn btn--sm" id="btnDossierSauvegarde"><svg class="ico"><use href="#i-archive"/></svg><span>Choisir le dossier</span></button>
+            <button class="btn btn--ghost btn--sm" id="btnAutoriserSauvegarde" hidden><svg class="ico"><use href="#i-check"/></svg>Autoriser</button>
+            <button class="btn btn--ghost btn--sm" id="btnArretSauvegarde" hidden><svg class="ico"><use href="#i-x"/></svg>Arrêter</button>
+          </div>
+          <p class="meta" id="admStockage"></p>
+        </div>
+        <div class="card">
           <h2>Données</h2>
-          <p class="meta">Tout est enregistré dans ce navigateur, sur cet appareil. Exportez une sauvegarde (courses, réglages et archives) pour changer d'ordinateur ou par précaution avant une course.</p>
+          <p class="meta">Tout est enregistré dans ce navigateur, sur cet appareil. Exportez une sauvegarde (courses, réglages et archives) pour changer d'ordinateur. « Restaurer » relit aussi les copies du dossier « Historique » de la sauvegarde automatique.</p>
           <div class="actions">
             <button class="btn btn--ghost btn--sm" id="btnSauvegarde"><svg class="ico"><use href="#i-download"/></svg>Exporter une sauvegarde</button>
             <button class="btn btn--ghost btn--sm" id="btnRestaurer"><svg class="ico"><use href="#i-upload"/></svg>Restaurer</button>

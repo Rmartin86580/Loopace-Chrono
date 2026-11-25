@@ -207,6 +207,27 @@ select.input { cursor: pointer; }
 @keyframes pulse { 50% { opacity: .25; } }
 
 .nav__install { flex: none; }
+
+/* Pastille de la sauvegarde automatique (en-tête) et son état dans Administration */
+.sauve {
+  display: inline-flex; align-items: center; gap: .45em; flex: none;
+  padding: .35em .8em; border-radius: 999px; border: 1px solid var(--line-strong);
+  background: transparent; color: var(--muted); font-size: .74rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.sauve::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.sauve:hover { color: var(--text); }
+.sauve--ok { color: var(--accent); border-color: rgba(var(--accent-rgb), .45); }
+.sauve--pause { color: var(--warn); border-color: var(--warn); }
+.sauve--erreur { color: var(--danger); border-color: rgba(var(--danger-rgb), .5); background: rgba(var(--danger-rgb), .08); }
+.sauve-etat { margin: .2rem 0 .8rem; font-weight: 600; }
+.sauve-etat--ok { color: var(--accent); }
+.sauve-etat--pause { color: var(--warn); }
+.sauve-etat--erreur { color: var(--danger); }
+/* Écran moyen : un simple point quand tout va bien, pour laisser la place aux onglets */
+@media (min-width: 721px) and (max-width: 1100px) {
+  .sauve--ok .sauve__txt, .sauve--aucun .sauve__txt { display: none; }
+  .sauve--ok, .sauve--aucun { padding: .55em; gap: 0; }
+}
 .theme-toggle {
   display: grid; place-items: center; flex: none;
   width: 38px; height: 38px; border-radius: 50%;

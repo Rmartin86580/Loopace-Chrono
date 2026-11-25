@@ -1,7 +1,7 @@
 // Logique métier : départ, arrivées, arrêt, classements individuel, par école et par club.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe, theme } from "./store.js?v=18";
+import { state, course, inscritsDe, theme } from "./store.js?v=19";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");
@@ -38,13 +38,31 @@ const memeDossard = (a, b) => {
 export const nomComplet = (i) => `${i.prenom || ""} ${i.nom || ""}`.trim();
 export const duree = (i) => (i.depart != null && i.arrivee != null ? i.arrivee - i.depart : null);
 
+/** Temps officiel : arrondi à la seconde supérieure (règle FFA du chronométrage manuel, 16:48,2 → 16:49). */
+export const arrondiFFA = (ms) => (ms == null ? null : Math.ceil(ms / 1000) * 1000);
+export const tempsOfficiel = (i) => arrondiFFA(duree(i));
+
+// ── Horloge ───────────────────────────────────────────────────
+// Horloge monotone : si Windows remet son heure à l'heure pendant une course, les temps ne bougent pas.
+// Un très grand écart avec l'heure du PC (mise en veille) est rattrapé sur l'heure du PC.
+const RATTRAPAGE = 60000;
+let decalage = Date.now() - performance.now();
+
+export function maintenant() {
+  const t = Math.round(performance.now() + decalage);
+  const pc = Date.now();
+  if (Math.abs(pc - t) <= RATTRAPAGE) return t;
+  decalage = pc - performance.now();
+  return pc;
+}
+
 // ── Chronomètre ───────────────────────────────────────────────
 export function etatChrono(c) {
   return c?.chrono || { etat: "attente", depart: null, fin: null };
 }
 
 /** Temps affiché par le grand chronomètre. */
-export function tempsCourse(c, now = Date.now()) {
+export function tempsCourse(c, now = maintenant()) {
   const ch = etatChrono(c);
   if (ch.depart == null) return 0;
   return (ch.fin ?? now) - ch.depart;
@@ -68,7 +86,7 @@ export function situationDe(tous) {
 /** Départ groupé : tous les inscrits dont le bulletin est complet partent à la même heure. */
 export function demarrer(courseId) {
   const c = course(courseId);
-  const now = Date.now();
+  const now = maintenant();
   inscritsDe(courseId).forEach((i) => {
     i.depart = i.bulletin ? now : null;
     i.arrivee = null;
@@ -88,7 +106,7 @@ export function arrivee(courseId, dossard) {
   if (!i) return { ok: false, message: `Dossard ${dossard} inconnu dans cette course.` };
   if (i.depart == null) return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) n'a pas pris le départ : bulletin incomplet.` };
   if (i.arrivee != null) return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) est déjà arrivé.` };
-  i.arrivee = Date.now();
+  i.arrivee = maintenant();
   i.statut = null;
 
   // Arrêt automatique quand plus personne n'est en course
@@ -101,7 +119,7 @@ export function arrivee(courseId, dossard) {
 export function arreter(courseId) {
   const c = course(courseId);
   situation(courseId).enCours.forEach((i) => { i.statut = "DNF"; });
-  c.chrono = { ...etatChrono(c), etat: "arretee", fin: Date.now() };
+  c.chrono = { ...etatChrono(c), etat: "arretee", fin: maintenant() };
 }
 
 /** Annule la dernière arrivée ; si la course était terminée, elle reprend. */
@@ -124,7 +142,7 @@ export function reinitialiser(courseId) {
 
 // ── Résultats ─────────────────────────────────────────────────
 function ligne(i, position) {
-  const ms = duree(i);
+  const ms = tempsOfficiel(i); // écart, vitesse, allure et scores d'équipe suivent le temps affiché
   const dnf = i.statut === "DNF";
   const absent = i.depart == null; // inscrit qui n'a pas pris le départ (seulement dans les écoles / clubs)
   return {

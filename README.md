@@ -10,11 +10,13 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
 | `index.html` | Application : onglets Courses, Chronomètre, Résultats, Archives, Administration |
 | `ecran.html` / `ecran.css` / `js/ecran.js` | Écran public (TV, vidéoprojecteur) : grand chrono et classement en direct |
 | `js/app.js` | Interface de l'application |
-| `js/calc.js` | Logique : départ, arrivées, arrêt (DNF), classements individuel, par école et par club (N premiers, aux places ou aux temps) |
+| `js/calc.js` | Logique : horloge, départ, arrivées, arrêt (DNF), temps officiels, classements individuel, par école et par club (N premiers, aux places ou aux temps) |
 | `js/store.js` | Données locales (IndexedDB) et synchronisation entre onglets (BroadcastChannel) |
+| `js/sauvegarde.js` | Sauvegarde automatique dans un dossier du PC, et contenu des sauvegardes exportées |
 | `js/excel.js` | Import / export Excel et modèle d'import (SheetJS) |
 | `js/pdf.js` | Feuille de résultats PDF selon le modèle de la course : classements, colonnes, orientation, apparence (jsPDF + AutoTable) |
 | `baremes.json` | Barèmes officiels des catégories automatiques (FFA, FFTri, UNSS, classes), mis à jour sur tous les postes |
+| `CHANGELOG.md` | Journal des modifications, version par version, à donner aux utilisateurs |
 | `outils/nouvelle-version.py` | Numéro de version des fichiers, à augmenter avant chaque mise en ligne |
 | `sw.js` | Cache hors ligne : une fois ouverte avec du réseau, l'application fonctionne sans |
 | `manifest.webmanifest` | Installation en application sur PC (nom, icônes `assets/chrono-app-*.png`, raccourcis) |
@@ -56,9 +58,15 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    fin de course ; **Administration → Options** permet de couper le son, de régler son volume et de le tester
    (réglages mémorisés sur ce poste).
    « Annuler la dernière arrivée » corrige une erreur de saisie.
+   Les temps sont pris sur une horloge interne : si Windows corrige son heure pendant la course, ils ne
+   bougent pas (seul un grand écart, après une mise en veille, est recalé sur l'heure du PC). Pendant une
+   course, et tant que l'écran public est affiché, l'écran ne se met pas en veille.
    Le chrono s'arrête seul quand tout le monde est arrivé ; « ARRÊT » classe DNF ceux qui sont encore en course.
    « Écran public » ouvre une fenêtre à placer sur le second écran (bouton Plein écran).
 3. **Résultats** : classement individuel, par école et par club, export PDF ou Excel.
+   Les temps affichés sont les temps officiels, arrondis à la seconde supérieure comme le veut la FFA
+   en chronométrage manuel (16:48,2 → 00:16:49) ; l'ordre d'arrivée reste celui des temps exacts.
+   Écart, vitesse, allure et scores d'équipe au temps sont calculés sur ces temps officiels.
    Le PDF suit le **modèle PDF** choisi dans la fiche course (Administration → Modèles PDF). Le modèle se
    construit en glisser-déposer (souris, doigt ou clavier) sur un aperçu de la page : l'ordre des blocs est celui du PDF.
    - classements au choix et dans l'ordre voulu : général, par sexe, par catégorie, par école, par club, podiums (3 premiers filles,
@@ -76,9 +84,24 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    « Dupliquer en nouvelle course » la remet en jeu pour une nouvelle édition.
    La liste des archives est rangée par année (repliable) avec une recherche par nom, lieu ou année.
 
-Les données vivent dans ce navigateur, sur cet appareil : **Administration → Exporter une sauvegarde** (archives
-comprises) avant
-de changer d'ordinateur, et ouvrir l'application au moins une fois avec du réseau avant d'aller sur le terrain.
+Les données vivent dans ce navigateur, sur cet appareil (l'application demande au navigateur de ne pas les
+effacer de lui-même).
+
+**Sauvegarde automatique** (Chrome, Edge) : Administration → Sauvegarde automatique → « Choisir le dossier », une
+seule fois. L'application y écrit ensuite toute seule, sans import ni export :
+- `Loopace_Chrono_derniere.json`, réécrit quelques secondes après chaque modification ;
+- `Historique/`, une copie datée au départ et à la fin de chaque course, à l'archivage et chaque jour d'utilisation
+  (les 30 dernières).
+
+La pastille en haut à droite indique « Sauvegardé à 10:42 », ou « en pause » quand le navigateur redemande l'accord
+au lancement (un clic dessus suffit ; avec l'appli installée, choisir « Autoriser à chaque visite »).
+Si les données du navigateur ont disparu, « Choisir le dossier » sur ce même dossier propose de les restaurer. Si
+le dossier contient déjà la sauvegarde d'un autre poste, on choisit de la restaurer ou de la remplacer (elle est
+alors rangée dans `Historique`). Un dossier OneDrive ou une clé USB garde une copie hors du PC.
+
+**Administration → Exporter une sauvegarde** (archives comprises) sert à changer d'ordinateur ; « Restaurer »
+relit ce fichier ou une copie de `Historique`. Ouvrir l'application au moins une fois avec du réseau avant
+d'aller sur le terrain.
 Le chrono survit à un rechargement de la page (heure de départ enregistrée).
 
 ## Installer en application sur PC
