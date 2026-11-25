@@ -276,6 +276,7 @@ async function editerCourse(c) {
   const bareme = c ? c.categories || "libre" : "ffa";
   $("#selectBareme").innerHTML = Object.entries(calc.BAREMES).map(([cle, b]) => `<option value="${cle}"${cle === bareme ? " selected" : ""}>${b.nom}</option>`).join("");
   f.categoriesSexe.checked = !!c?.categoriesSexe;
+  f.diplomesActifs.checked = !!c?.diplomesActifs;
   f.equipes.value = c ? calc.equipesDe(c, inscritsDe(c.id)).choix : "ecole";
   aideCategories();
 
@@ -287,7 +288,7 @@ async function editerCourse(c) {
     nom, date: f.date.value || null, heure: f.heure.value || null, lieu: f.lieu.value.trim(),
     distance: Number.isFinite(distance) ? distance : null, type: f.type.value.trim(), themeId: f.themeId.value || null,
     plageDossards: lirePlage(f.dossardsDe.value, f.dossardsA.value),
-    categories: f.categories.value, categoriesSexe: f.categoriesSexe.checked, equipes: f.equipes.value,
+    categories: f.categories.value, categoriesSexe: f.categoriesSexe.checked, equipes: f.equipes.value, diplomesActifs: f.diplomesActifs.checked,
   };
   let cible = c;
   if (c) Object.assign(c, valeurs);
@@ -942,6 +943,7 @@ function rendreResultats() {
   const res = c ? calc.resultats(c.id) : null;
   const vide = !res || !res.individuel.length;
   ["#btnPdf", "#btnExcelResultats", "#btnExportFFA", "#btnDiplomes", "#btnArchiver"].forEach((s) => { $(s).disabled = vide; });
+  $("#btnDiplomes").hidden = !c?.diplomesActifs; // option de la fiche course
   $("#resultatsInfo").textContent = c ? (vide ? "Aucun temps pour cette course : donnez le départ dans l'onglet Chronomètre." : res.info) : "Choisissez une course.";
 
   const eq = res?.equipes || { ecole: true, club: true };

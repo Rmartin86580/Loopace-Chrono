@@ -73,7 +73,7 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    club, département, licence, temps), abandons à la suite, plus une feuille « Épreuve ». Nationalité (FRA par
    défaut) et département se saisissent dans la fiche participant ou l'import Excel ; ces champs n'apparaissent
    que pour une course en catégories FFA ou avec des clubs.
-   **Diplômes** : un PDF A5 paysage par coureur, deux par feuille A4 à découper, aux couleurs et logo du modèle
+   **Diplômes** (option à cocher dans la fiche course) : un PDF A5 paysage par coureur, deux par feuille A4 à découper, aux couleurs et logo du modèle
    PDF. Au choix : tous les arrivés, les 3 premiers au général et de chaque catégorie, ou les N premiers ; en
    option un diplôme « pour sa participation » aux non-arrivés ; ordre par classement, par école / club (pour
    la distribution) ou par catégorie ; titre et signature retenus pour la course.
