@@ -170,7 +170,7 @@ select.input { cursor: pointer; }
   .course-form__reglages .form-section:first-child { padding-top: 1rem; border-top: 1px solid var(--line); }
 }
 /* Réglage « Participants » de la course : école, club ou les deux */
-.sans-ecole .col-ecole, .sans-club .col-club { display: none !important; }
+.sans-ecole .col-ecole, .sans-club .col-club, .sans-ffa .col-ffa { display: none !important; }
 .form-section { display: flex; flex-direction: column; gap: .7rem; margin: 0; padding: 1rem 0 0; border: 0; border-top: 1px solid var(--line); min-width: 0; }
 .form-section:first-of-type { padding-top: 0; border-top: 0; }
 .form-section > legend { float: left; width: 100%; padding: 0; margin-bottom: .2rem; font: 700 .74rem/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
@@ -469,6 +469,7 @@ select.input { cursor: pointer; }
 .changelog b { color: var(--text); }
 .changelog hr { border: 0; border-top: 1px solid var(--line); margin: 1.4rem 0; }
 .changelog a { color: var(--accent); text-decoration: underline; }
+.check--nombre .input { width: 5em; padding: .35em .5em; }
 .toast__action { margin-left: .8em; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .modele-tete { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem 1.4rem; }
 .modele-tete h3 { margin: 0 auto .55rem 0; }

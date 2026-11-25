@@ -11,7 +11,7 @@ import re
 
 RACINE = pathlib.Path(__file__).resolve().parent.parent
 FICHIERS = ["index.html", "ecran.html", "sw.js", *[f"js/{p.name}" for p in (RACINE / "js").glob("*.js")]]
-CIBLES = r"((?:styles|ecran)\.css|(?:app|ecran|store|calc|excel|pdf|sauvegarde)\.js)"
+CIBLES = r"((?:styles|ecran)\.css|(?:app|ecran|store|calc|excel|pdf|sauvegarde|diplomes)\.js)"
 
 textes = {f: (RACINE / f).read_text(encoding="utf-8") for f in FICHIERS}
 actuelle = max([int(v) for t in textes.values() for v in re.findall(r"\?v=(\d+)", t)] or [0])

@@ -1,7 +1,7 @@
 // Logique métier : départ, arrivées, arrêt, classements individuel, par école et par club.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe, theme } from "./store.js?v=20";
+import { state, course, inscritsDe, theme } from "./store.js?v=21";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");
@@ -154,6 +154,8 @@ function ligne(i, position) {
     ecole: i.ecole || "",
     club: i.club || "",
     licence: i.licence || "",
+    nationalite: (i.nationalite || "FRA").toUpperCase(),
+    departement: i.departement || "",
     categorie: i.categorie || "",
     sexe: i.sexe || "",
     naissance: i.annee ? String(i.annee) : "",
@@ -192,6 +194,9 @@ export function equipesDe(c, inscrits = []) {
   const choix = ["ecole", "club", "les2"].includes(c?.equipes) ? c.equipes : inscrits.some((i) => i.club) ? "les2" : "ecole";
   return { choix, ecole: choix !== "club", club: choix !== "ecole" };
 }
+
+/** Nationalité et département : utiles aux courses en catégories FFA (résultats fédéraux) ou avec des clubs. */
+export const avecChampsFFA = (c, eq) => c?.categories === "ffa" || !!eq?.club;
 
 /** École ou club d'un participant à afficher (chronomètre, écran public), selon le réglage de la course. */
 export const equipeAffichee = (i, eq) => (eq.ecole && i.ecole) || (eq.club && i.club) || "";

@@ -1,12 +1,13 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=20";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=20";
-import * as calc from "./calc.js?v=20";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=20";
-import * as excel from "./excel.js?v=20";
-import * as sauvegarde from "./sauvegarde.js?v=20";
-import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=20";
+import * as store from "./store.js?v=21";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID } from "./store.js?v=21";
+import * as calc from "./calc.js?v=21";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=21";
+import * as excel from "./excel.js?v=21";
+import * as sauvegarde from "./sauvegarde.js?v=21";
+import { genererDiplomes } from "./diplomes.js?v=21";
+import { genererPdf, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=21";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -407,7 +408,9 @@ async function editerParticipant(i) {
   const c = course(courseSel);
   if (!c) return;
   const f = $("#formParticipant");
-  marquerEquipes(f, calc.equipesDe(c, inscritsDe(c.id)));
+  const eqFiche = calc.equipesDe(c, inscritsDe(c.id));
+  marquerEquipes(f, eqFiche);
+  f.classList.toggle("sans-ffa", !calc.avecChampsFFA(c, eqFiche));
   $("#dlgParticipantTitre").textContent = i ? `${nomComplet(i)}` : "Nouveau participant";
   $("#btnDesinscrire").hidden = !i;
   $("#erreurParticipant").textContent = "";
@@ -422,6 +425,8 @@ async function editerParticipant(i) {
   f.categorie.value = i?.categorie || "";
   f.telephone.value = i?.telephone || "";
   f.licence.value = i?.licence || "";
+  f.nationalite.value = i?.nationalite || "";
+  f.departement.value = i?.departement || "";
   f.bulletin.checked = !!i?.bulletin;
   f.categorie.dataset.manuel = i?.categorieManuelle ? "1" : "";
   categorieParticipant();
@@ -447,6 +452,7 @@ async function editerParticipant(i) {
     const valeurs = {
       dossard, nom: f.nom.value.trim(), prenom: f.prenom.value.trim(), annee: Number.isFinite(annee) ? annee : null,
       sexe: f.sexe.value, ecole: f.ecole.value.trim(), club: f.club.value.trim(), categorie: f.categorie.value.trim(), telephone: f.telephone.value.trim(), licence: f.licence.value.trim(), bulletin: f.bulletin.checked,
+      nationalite: f.nationalite.value.trim().toUpperCase(), departement: f.departement.value.trim().toUpperCase(),
     };
     // Champ vidé : on reprend la catégorie calculée ; valeur différente du calcul : correction manuelle conservée
     const auto = calc.categorieAuto(c, valeurs.annee, valeurs.sexe);
@@ -504,7 +510,7 @@ $("#btnExcel").addEventListener("click", () => {
   const nb = calc.nbInscrits(c.id);
   $("#dlgExcelTitre").textContent = `Excel — ${c.nom}`;
   $("#excelExportTexte").textContent = nb
-    ? `Télécharge la liste des ${nb} participant(s) de la course : dossard, nom, prénom, sexe, année, école, club, licence, catégorie, téléphone, bulletin.`
+    ? `Télécharge la liste des ${nb} participant(s) de la course : dossard, nom, prénom, sexe, année, école, club, licence, nationalité, département, catégorie, téléphone, bulletin.`
     : "Aucun participant à exporter pour l'instant.";
   $("#btnExporterParticipants").disabled = !nb;
   $("#dlgExcel").showModal();
@@ -558,6 +564,8 @@ $("#fichierImport").addEventListener("change", async (e) => {
       if (l.club) existant.club = l.club;
       if (l.telephone) existant.telephone = l.telephone;
       if (l.licence) existant.licence = l.licence;
+      if (l.nationalite) existant.nationalite = l.nationalite;
+      if (l.departement) existant.departement = l.departement;
       if (l.bulletin) existant.bulletin = true;
       if (dossard && dossard !== String(existant.dossard ?? "")) {
         if (existant.dossard) erreurs.push(`${l.prenom} ${l.nom} : garde son dossard ${existant.dossard} (le fichier indique ${dossard})`);
@@ -575,7 +583,7 @@ $("#fichierImport").addEventListener("change", async (e) => {
     }
     state.inscrits.push({
       id: uid(), courseId: c.id, dossard, nom: l.nom, prenom: l.prenom, sexe: l.sexe, annee: l.annee,
-      ecole: l.ecole, club: l.club, categorie: calc.categorieAuto(c, l.annee, l.sexe) || l.categorie, telephone: l.telephone, licence: l.licence, bulletin: l.bulletin,
+      ecole: l.ecole, club: l.club, categorie: calc.categorieAuto(c, l.annee, l.sexe) || l.categorie, telephone: l.telephone, licence: l.licence, nationalite: l.nationalite, departement: l.departement, bulletin: l.bulletin,
       depart: null, arrivee: null, statut: null,
     });
     importes++;
@@ -933,7 +941,7 @@ function rendreResultats() {
   const c = course(resultatsSel);
   const res = c ? calc.resultats(c.id) : null;
   const vide = !res || !res.individuel.length;
-  ["#btnPdf", "#btnExcelResultats", "#btnArchiver"].forEach((s) => { $(s).disabled = vide; });
+  ["#btnPdf", "#btnExcelResultats", "#btnExportFFA", "#btnDiplomes", "#btnArchiver"].forEach((s) => { $(s).disabled = vide; });
   $("#resultatsInfo").textContent = c ? (vide ? "Aucun temps pour cette course : donnez le départ dans l'onglet Chronomètre." : res.info) : "Choisissez une course.";
 
   const eq = res?.equipes || { ecole: true, club: true };
@@ -1007,6 +1015,63 @@ $("#btnExcelResultats").addEventListener("click", () => {
   if (!c) return;
   try { excel.exporterResultats(nomFichier("Resultats_", c.nom, "xlsx"), calc.resultats(c.id)); }
   catch (err) { toast(err.message, "err"); }
+});
+
+$("#btnExportFFA").addEventListener("click", () => {
+  const c = course(resultatsSel);
+  if (!c) return;
+  const res = calc.resultats(c.id);
+  try {
+    const n = excel.exporterFFA(nomFichier("Resultats_FFA_", c.nom, "xlsx"), c, res);
+    const avertir = [
+      c.categories !== "ffa" && "la course n'est pas en catégories FFA (codes catégorie de la course)",
+      res.individuel.some((l) => l.enCours) && "les coureurs encore en course ne sont pas exportés",
+    ].filter(Boolean);
+    toast(`Export FFA : ${n.arrivants} arrivant(s), ${n.abandons} abandon(s).` + (avertir.length ? ` Attention : ${avertir.join(" ; ")}.` : ""), avertir.length ? "warn" : "ok");
+  } catch (err) { toast(err.message, "err"); }
+});
+
+// ── Diplômes ─────────────────────────────────────────────────
+/** Coureurs qui reçoivent un diplôme, selon les choix de la fenêtre, dans l'ordre demandé. */
+function lignesDiplomes(res, f) {
+  const arrives = res.individuel.filter((l) => !l.dnf && !l.enCours && l.ms != null);
+  const nb = Math.max(1, parseInt(f.nb.value, 10) || 1);
+  const garde = { tous: () => true, podiums: (l) => +l.position <= 3 || l.rangCategorie <= 3, premiers: (l) => +l.position <= nb }[f.qui.value];
+  const lignes = [...arrives.filter(garde), ...(f.participation.checked ? res.individuel.filter((l) => l.dnf) : [])];
+  const fr = (a, b) => String(a || "").localeCompare(String(b || ""), "fr", { numeric: true });
+  const rang = (l) => (l.dnf ? Infinity : +l.position);
+  const tri = {
+    classement: (a, b) => rang(a) - rang(b),
+    equipe: (a, b) => fr(a.ecole || a.club, b.ecole || b.club) || fr(a.nom, b.nom) || fr(a.prenom, b.prenom),
+    categorie: (a, b) => fr(a.categorie, b.categorie) || (a.rangCategorie ?? Infinity) - (b.rangCategorie ?? Infinity) || rang(a) - rang(b),
+  }[f.ordre.value];
+  return { lignes: lignes.sort(tri), nbArrives: arrives.length };
+}
+
+$("#btnDiplomes").addEventListener("click", async () => {
+  const c = course(resultatsSel);
+  if (!c) return;
+  const res = calc.resultats(c.id);
+  const f = $("#formDiplomes");
+  f.titre.value = c.diplomes?.titre || "";
+  f.signature.value = c.diplomes?.signature || "";
+  const compter = () => {
+    const n = lignesDiplomes(res, f).lignes.length;
+    $("#diplomesCompte").textContent = n ? `${n} diplôme(s), ${Math.ceil(n / 2)} feuille(s) A4.` : "Aucun coureur ne correspond à ce choix.";
+    $("#btnCreerDiplomes").disabled = !n;
+  };
+  f.oninput = compter;
+  compter();
+  if (await ouvrirDialogue($("#dlgDiplomes")) !== "ok") return;
+
+  c.diplomes = { titre: f.titre.value.trim(), signature: f.signature.value.trim() }; // repris la prochaine fois
+  await store.sauver();
+  try {
+    const { lignes, nbArrives } = lignesDiplomes(res, f);
+    const blob = genererDiplomes({ course: c, theme: theme(c.themeId), lignes, nbArrives, titre: c.diplomes.titre, signature: c.diplomes.signature });
+    telecharger(blob, nomFichier("Diplomes_", c.nom, "pdf"));
+    toast(`${lignes.length} diplôme(s) créé(s).`);
+  } catch (err) { toast(`Erreur lors de la création des diplômes : ${err.message}`, "err"); }
 });
 
 $("#btnArchiver").addEventListener("click", async () => {

@@ -12,6 +12,8 @@ export const COLONNES_PDF = [
   { cle: "ecole", titre: "École" },
   { cle: "club", titre: "Club" },
   { cle: "licence", titre: "Licence", largeur: 64 },
+  { cle: "nationalite", titre: "Nat.", largeur: 30, aide: "Nationalité (FRA…)" },
+  { cle: "departement", titre: "Dépt", largeur: 32, aide: "Département du club" },
   { cle: "categorie", titre: "Catégorie", largeur: 54 },
   { cle: "sexe", titre: "Sexe", largeur: 30 },
   { cle: "naissance", titre: "Né(e)", largeur: 34 },

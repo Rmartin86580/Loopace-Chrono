@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20">
+  <link rel="stylesheet" href="styles.css?v=21">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
     // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
@@ -29,7 +29,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=20"></script>
+  <script type="module" src="js/app.js?v=21"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -200,6 +200,8 @@
           <div class="actions">
             <button class="btn btn--sm" id="btnPdf"><svg class="ico"><use href="#i-pdf"/></svg>Exporter PDF</button>
             <button class="btn btn--ghost btn--sm" id="btnExcelResultats"><svg class="ico"><use href="#i-download"/></svg>Exporter Excel</button>
+            <button class="btn btn--ghost btn--sm" id="btnExportFFA" title="Résultats au format FFA, pour la commission départementale"><svg class="ico"><use href="#i-sheet"/></svg>Export FFA</button>
+            <button class="btn btn--ghost btn--sm" id="btnDiplomes"><svg class="ico"><use href="#i-pdf"/></svg>Diplômes</button>
             <button class="btn btn--ghost btn--sm" id="btnArchiver"><svg class="ico"><use href="#i-archive"/></svg>Archiver la course</button>
           </div>
         </div>
@@ -404,6 +406,8 @@
         <label class="field col-ecole"><span>École</span><input class="input" name="ecole" list="listeEcoles" maxlength="200"></label>
         <label class="field col-club"><span>Club</span><input class="input" name="club" list="listeClubs" maxlength="200"></label>
         <label class="field"><span>N° de licence</span><input class="input" name="licence" maxlength="40"></label>
+        <label class="field col-ffa"><span>Nationalité <em class="field__hint">code à 3 lettres</em></span><input class="input" name="nationalite" maxlength="3" placeholder="FRA" autocapitalize="characters"></label>
+        <label class="field col-ffa"><span>Département <em class="field__hint">du club</em></span><input class="input" name="departement" maxlength="3" placeholder="ex : 86"></label>
         <label class="field"><span>Catégorie <em class="field__hint" id="indiceCategorie"></em></span><input class="input" name="categorie" list="listeCategories" maxlength="100"></label>
         <label class="check field--full"><input type="checkbox" name="bulletin"> Bulletin d'inscription complet (le participant prend le départ)</label>
       </div>
@@ -603,6 +607,34 @@
         <button type="button" class="btn" id="btnEnregistrerBareme"><svg class="ico"><use href="#i-check"/></svg>Enregistrer et recalculer</button>
       </div>
     </div>
+  </dialog>
+
+  <dialog class="dlg" id="dlgDiplomes">
+    <form method="dialog" class="dlg__body" id="formDiplomes">
+      <h3>Diplômes</h3>
+      <p class="meta">Un diplôme par coureur, en A5 paysage, deux par feuille A4 à découper. Couleur, logo et titre de l'organisateur : modèle PDF de la course.</p>
+      <fieldset class="form-section">
+        <legend>Pour qui ?</legend>
+        <label class="check"><input type="radio" name="qui" value="tous" checked> Tous les arrivés</label>
+        <label class="check"><input type="radio" name="qui" value="podiums"> Les 3 premiers au général et de chaque catégorie</label>
+        <label class="check check--nombre"><input type="radio" name="qui" value="premiers"> Les <input class="input" type="number" name="nb" min="1" max="999" value="10"> premiers au général</label>
+        <label class="check"><input type="checkbox" name="participation"> Ajouter les coureurs non arrivés (diplôme « pour sa participation »)</label>
+      </fieldset>
+      <div class="form-grid">
+        <label class="field"><span>Ordre des diplômes</span><select class="input" name="ordre">
+          <option value="classement">Classement</option>
+          <option value="equipe">Par école / club, puis nom (pour la distribution)</option>
+          <option value="categorie">Par catégorie</option>
+        </select></label>
+        <label class="field"><span>Titre</span><input class="input" name="titre" maxlength="40" placeholder="Diplôme"></label>
+        <label class="field field--full"><span>Signature <em class="field__hint">optionnel, sous une ligne à signer</em></span><input class="input" name="signature" maxlength="80" placeholder="ex : L'équipe EPS, Le président du club"></label>
+      </div>
+      <p class="meta" id="diplomesCompte"></p>
+      <div class="dlg__actions">
+        <button type="button" class="btn btn--ghost" data-valeur="annuler">Annuler</button>
+        <button class="btn" value="ok" id="btnCreerDiplomes"><svg class="ico"><use href="#i-pdf"/></svg>Créer les diplômes</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog class="dlg dlg--nouveautes" id="dlgNouveautes">

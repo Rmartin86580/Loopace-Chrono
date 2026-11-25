@@ -1,5 +1,7 @@
 // Import / export Excel avec SheetJS (chargé par index.html : window.XLSX).
 
+import { codeCategorie } from "./pdf.js?v=21";
+
 function lib() {
   if (!window.XLSX) throw new Error("La bibliothèque Excel n'est pas chargée (connexion nécessaire au premier lancement).");
   return window.XLSX;
@@ -56,6 +58,8 @@ export async function lireParticipants(fichier) {
     categorie: col("categorie", "cat", "classe"),
     telephone: col("telephone", "tel", "phone"),
     licence: col("licence", "n° licence", "n licence", "no licence", "numero de licence", "num licence", "license"),
+    nationalite: col("nationalite", "nat", "nat.", "nationality", "pays"),
+    departement: col("departement", "dept", "dep", "dpt", "dept.", "departement du club"),
     bulletin: col("bulletin", "bulletinok", "bulletin ok", "inscrit"),
   };
   const manquantes = [["Nom", c.nom], ["Sexe", c.sexe], ["Né (année de naissance)", c.annee]].filter(([, k]) => k === -1).map(([n]) => `« ${n} »`);
@@ -70,6 +74,7 @@ export async function lireParticipants(fichier) {
       sexe: lireSexe(get(c.sexe)), sexeLu: get(c.sexe),
       annee: lireAnnee(brutes[k + 1]?.[c.annee]), anneeLue: get(c.annee),
       ecole: get(c.ecole), club: get(c.club), categorie: get(c.categorie), telephone: get(c.telephone), licence: get(c.licence),
+      nationalite: get(c.nationalite).toUpperCase(), departement: get(c.departement).toUpperCase(),
       bulletin: ["1", "oui", "true", "yes", "x", "vrai"].includes(get(c.bulletin).toLowerCase()),
     };
   }).filter((l) => l.dossard || l.nom || l.prenom || l.sexeLu || l.anneeLue); // lignes entièrement vides ignorées
@@ -89,10 +94,10 @@ function ecrire(nomFichier, feuilles) {
 export function exporterParticipants(nomFichier, inscrits) {
   ecrire(nomFichier, [{
     nom: "Participants",
-    largeurs: [10, 20, 18, 6, 8, 26, 26, 14, 16, 16, 11],
+    largeurs: [10, 20, 18, 6, 8, 26, 26, 14, 12, 12, 16, 16, 11],
     lignes: [
-      ["Dossard", "Nom", "Prénom", "Sexe", "Né(e)", "École", "Club", "Licence", "Catégorie", "Téléphone", "Bulletin OK"],
-      ...inscrits.map((i) => [i.dossard || "", i.nom, i.prenom, i.sexe || "", i.annee || "", i.ecole || "", i.club || "", i.licence || "", i.categorie || "", i.telephone || "", i.bulletin ? "Oui" : "Non"]),
+      ["Dossard", "Nom", "Prénom", "Sexe", "Né(e)", "École", "Club", "Licence", "Nationalité", "Département", "Catégorie", "Téléphone", "Bulletin OK"],
+      ...inscrits.map((i) => [i.dossard || "", i.nom, i.prenom, i.sexe || "", i.annee || "", i.ecole || "", i.club || "", i.licence || "", i.nationalite || "", i.departement || "", i.categorie || "", i.telephone || "", i.bulletin ? "Oui" : "Non"]),
     ],
   }]);
 }
@@ -119,17 +124,50 @@ export function exporterResultats(nomFichier, res) {
   ecrire(nomFichier, feuilles);
 }
 
+/**
+ * Résultats au format demandé par la FFA (réglementation des courses hors stade), à envoyer à la commission
+ * départementale : place, dossard, nom, prénom, sexe, année, catégorie en code FFA (SE, M1, CA…), place dans
+ * la catégorie (par sexe), nationalité, club, département, licence, temps officiel. Les abandons suivent les
+ * arrivés ; les coureurs encore en course ne sont pas exportés.
+ */
+export function exporterFFA(nomFichier, c, res) {
+  const code = (cat) => (cat ? codeCategorie(cat.replace(/\s+[FM]$/, "")) : ""); // « Minimes F » → MI
+  const lignes = res.individuel.filter((l) => !l.enCours).map((l) => [
+    l.dnf ? "Abandon" : Number(l.position), l.dossard, l.nom.toUpperCase(), l.prenom, l.sexe, l.naissance ? Number(l.naissance) : "",
+    code(l.categorie), l.dnf ? "" : l.rangCatSexe ?? "", l.nationalite, l.club, l.departement, l.licence, l.dnf ? "" : l.temps,
+  ]);
+  const arrivants = lignes.filter((r) => r[0] !== "Abandon").length;
+  const date = c.date ? c.date.split("-").reverse().join("/") : "";
+  ecrire(nomFichier, [
+    {
+      nom: "Résultats",
+      largeurs: [8, 9, 22, 18, 6, 7, 6, 8, 6, 28, 6, 12, 10],
+      lignes: [["Clt", "Dossard", "Nom", "Prénom", "Sexe", "Année", "Cat.", "Clt cat.", "Nat.", "Club", "Dépt", "N° licence", "Temps"], ...lignes],
+    },
+    {
+      nom: "Épreuve",
+      largeurs: [20, 50],
+      lignes: [
+        ["Épreuve", c.nom], ["Date", date], ["Lieu", c.lieu || ""], ["Distance (km)", Number(c.distance) || ""],
+        ["Arrivants", arrivants], ["Abandons", lignes.length - arrivants],
+        ["Chronométrage", "Manuel, temps arrondis à la seconde supérieure"], ["Logiciel", "Loopace Chrono"],
+      ],
+    },
+  ]);
+  return { arrivants, abandons: lignes.length - arrivants };
+}
+
 export function telechargerModele() {
   ecrire("Modele_Import_Participants.xlsx", [
     {
       nom: "Import",
       // Colonnes obligatoires en premier : Nom, Sexe, Né
-      largeurs: [20, 18, 8, 8, 10, 25, 25, 14, 16, 16, 12],
+      largeurs: [20, 18, 8, 8, 10, 25, 25, 14, 12, 12, 16, 16, 12],
       lignes: [
-        ["Nom ★", "Prenom", "Sexe ★", "Né ★", "Dossard", "Ecole", "Club", "Licence", "Categorie", "Telephone", "Bulletin"],
-        ["Dupont", "Marie", "F", 2010, "", "Lycée Jean Moulin", "", "", "", "0612345678", "oui"],
-        ["Martin", "Thomas", "M", 2009, "", "Collège Vauban", "", "", "", "", ""],
-        ["Bernard", "Léa", "F", 2011, "12", "Lycée Jean Moulin", "Lencloitre JC 86", "2849415", "", "", "1"],
+        ["Nom ★", "Prenom", "Sexe ★", "Né ★", "Dossard", "Ecole", "Club", "Licence", "Nationalite", "Departement", "Categorie", "Telephone", "Bulletin"],
+        ["Dupont", "Marie", "F", 2010, "", "Lycée Jean Moulin", "", "", "", "", "", "0612345678", "oui"],
+        ["Martin", "Thomas", "M", 2009, "", "Collège Vauban", "", "", "", "", "", "", ""],
+        ["Bernard", "Léa", "F", 2011, "12", "Lycée Jean Moulin", "Lencloitre JC 86", "2849415", "FRA", "86", "", "", "1"],
       ],
     },
     {
@@ -151,6 +189,8 @@ export function telechargerModele() {
         ["Ecole", "École ou établissement (classement par école)"],
         ["Club", "Club ou association (classement par club)"],
         ["Licence", "Numéro de licence (optionnel), affichable dans une colonne du PDF"],
+        ["Nationalite", "Code à 3 lettres (FRA, BEL, ESP…) ; vide = FRA. Sert à l'export FFA"],
+        ["Departement", "Département du club (ex : 86). Sert à l'export FFA"],
         ["Categorie", "Catégorie, seulement si la course est en saisie libre (sinon calculée d'après l'année)"],
         ["Telephone", "Numéro de téléphone (optionnel)"],
         ["Bulletin", "Bulletin d'inscription complet ? Valeurs acceptées : oui / 1 / true / x"],

@@ -12,6 +12,7 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
 | `js/app.js` | Interface de l'application |
 | `js/calc.js` | Logique : horloge, départ, arrivées, arrêt (DNF), temps officiels, classements individuel, par école et par club (N premiers, aux places ou aux temps) |
 | `js/store.js` | Données locales (IndexedDB) et synchronisation entre onglets (BroadcastChannel) |
+| `js/diplomes.js` | Diplômes PDF (A5 paysage, deux par feuille A4) |
 | `js/sauvegarde.js` | Sauvegarde automatique dans un dossier du PC, et contenu des sauvegardes exportées |
 | `js/excel.js` | Import / export Excel et modèle d'import (SheetJS) |
 | `js/pdf.js` | Feuille de résultats PDF selon le modèle de la course : classements, colonnes, orientation, apparence (jsPDF + AutoTable) |
@@ -67,6 +68,15 @@ navigateur (IndexedDB), rien n'est envoyé en ligne.
    Les temps affichés sont les temps officiels, arrondis à la seconde supérieure comme le veut la FFA
    en chronométrage manuel (16:48,2 → 00:16:49) ; l'ordre d'arrivée reste celui des temps exacts.
    Écart, vitesse, allure et scores d'équipe au temps sont calculés sur ces temps officiels.
+   **Export FFA** : fichier Excel au format de la réglementation hors stade, pour la commission départementale
+   (place, dossard, nom, prénom, sexe, année, catégorie en code FFA, place dans la catégorie par sexe, nationalité,
+   club, département, licence, temps), abandons à la suite, plus une feuille « Épreuve ». Nationalité (FRA par
+   défaut) et département se saisissent dans la fiche participant ou l'import Excel ; ces champs n'apparaissent
+   que pour une course en catégories FFA ou avec des clubs.
+   **Diplômes** : un PDF A5 paysage par coureur, deux par feuille A4 à découper, aux couleurs et logo du modèle
+   PDF. Au choix : tous les arrivés, les 3 premiers au général et de chaque catégorie, ou les N premiers ; en
+   option un diplôme « pour sa participation » aux non-arrivés ; ordre par classement, par école / club (pour
+   la distribution) ou par catégorie ; titre et signature retenus pour la course.
    Le PDF suit le **modèle PDF** choisi dans la fiche course (Administration → Modèles PDF). Le modèle se
    construit en glisser-déposer (souris, doigt ou clavier) sur un aperçu de la page : l'ordre des blocs est celui du PDF.
    - classements au choix et dans l'ordre voulu : général, par sexe, par catégorie, par école, par club, podiums (3 premiers filles,
