@@ -1,6 +1,6 @@
 // Import / export Excel avec SheetJS (chargé par index.html : window.XLSX).
 
-import { codeCategorie } from "./pdf.js?v=24";
+import { codeCategorie } from "./pdf.js?v=25";
 
 function lib() {
   if (!window.XLSX) throw new Error("La bibliothèque Excel n'est pas chargée (connexion nécessaire au premier lancement).");
@@ -102,15 +102,14 @@ export function exporterParticipants(nomFichier, inscrits) {
   }]);
 }
 
+const LARGEURS_CLASSEMENT = [6, 10, 20, 18, 26, 26, 14, 14, 6, 8, 12];
+const lignesClassement = (res) => [
+  ["#", "Dossard", "Nom", "Prénom", "École", "Club", "Licence", "Catégorie", "Sexe", "Né(e)", "Temps"],
+  ...res.individuel.map((l) => [l.position, l.dossard, l.nom, l.prenom, l.ecole, l.club, l.licence, l.categorie, l.sexe, l.naissance, l.enCours ? "En course" : l.temps]),
+];
+
 export function exporterResultats(nomFichier, res) {
-  const feuilles = [{
-    nom: "Classement",
-    largeurs: [6, 10, 20, 18, 26, 26, 14, 14, 6, 8, 12],
-    lignes: [
-      ["#", "Dossard", "Nom", "Prénom", "École", "Club", "Licence", "Catégorie", "Sexe", "Né(e)", "Temps"],
-      ...res.individuel.map((l) => [l.position, l.dossard, l.nom, l.prenom, l.ecole, l.club, l.licence, l.categorie, l.sexe, l.naissance, l.enCours ? "En course" : l.temps]),
-    ],
-  }];
+  const feuilles = [{ nom: "Classement", largeurs: LARGEURS_CLASSEMENT, lignes: lignesClassement(res) }];
   if (res.ecoles.length) feuilles.push({
     nom: "Écoles",
     largeurs: [6, 30, 10, 8, 14],
@@ -122,6 +121,23 @@ export function exporterResultats(nomFichier, res) {
     lignes: [["#", "Club", "Inscrits", "Classés", "DNF", `Total (${res.regle.txt})`], ...res.clubs.map((g) => [g.rang, g.ecole, g.nbInscrits, g.nbFinishers, g.nbDnf, g.scoreTxt])],
   });
   ecrire(nomFichier, feuilles);
+}
+
+/**
+ * Résultats d'un événement : une feuille par course, avec son classement, nommée d'après la course.
+ * @param {{nom: string, res: object}[]} parties  les courses dans l'ordre du programme
+ */
+export function exporterResultatsEvenement(nomFichier, parties) {
+  const pris = new Set();
+  const nomFeuille = (nom) => {
+    // Excel : 31 caractères au plus, sans \ / ? * [ ] :, et deux feuilles ne peuvent pas avoir le même nom
+    const base = String(nom || "Course").replace(/[\\/?*[\]:]/g, " ").replace(/\s+/g, " ").trim().slice(0, 27) || "Course";
+    let n = base;
+    for (let k = 2; pris.has(n.toLowerCase()); k++) n = `${base} ${k}`;
+    pris.add(n.toLowerCase());
+    return n;
+  };
+  ecrire(nomFichier, parties.map(({ nom, res }) => ({ nom: nomFeuille(nom), largeurs: LARGEURS_CLASSEMENT, lignes: lignesClassement(res) })));
 }
 
 /**

@@ -433,6 +433,8 @@ select.input { cursor: pointer; }
 .archive-item em { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-style: normal; font-size: .76rem; font-weight: 700; color: var(--faint); font-variant-numeric: tabular-nums; }
 .archive-item mark { background: rgba(var(--accent-rgb), .3); color: inherit; border-radius: 3px; }
 .resume { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 2.2fr) minmax(0, 1.6fr); gap: .7rem; margin-bottom: 1rem; }
+.resume.resume--evenement { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.archive-courses { margin-bottom: 1rem; }
 .resume__tuile { padding: .75rem .9rem; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line); min-width: 0; }
 .resume__tuile > small { display: block; font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .resume__tuile > b { display: block; margin-top: .2rem; font: 800 1.5rem/1.1 var(--font-body); font-variant-numeric: tabular-nums; }

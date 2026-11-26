@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=24">
+  <link rel="stylesheet" href="styles.css?v=25">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
     // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
@@ -29,7 +29,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=24"></script>
+  <script type="module" src="js/app.js?v=25"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -100,6 +100,7 @@
               <div class="actions">
                 <button class="btn btn--ghost btn--sm" id="btnModifierEvenement"><svg class="ico"><use href="#i-edit"/></svg>Modifier</button>
                 <button class="btn btn--ghost btn--sm" id="btnDupliquerEvenement"><svg class="ico"><use href="#i-copy"/></svg>Dupliquer</button>
+                <button class="btn btn--ghost btn--sm" id="btnArchiverEvenement"><svg class="ico"><use href="#i-archive"/></svg>Archiver</button>
                 <button class="btn btn--ghost btn--sm btn--danger" id="btnSupprimerEvenement"><svg class="ico"><use href="#i-trash"/></svg>Supprimer</button>
               </div>
             </div>
@@ -272,6 +273,7 @@
           <div id="detailArchive" hidden>
             <div class="card__head card__head--wrap">
               <div>
+                <p class="surtitre" id="surtitreArchive" hidden>Événement</p>
                 <h2 id="titreArchive"></h2>
                 <p class="meta" id="metaArchive"></p>
               </div>
@@ -283,6 +285,12 @@
               </div>
             </div>
             <div class="resume" id="resumeArchive"></div>
+            <div class="table-wrap archive-courses" id="coursesArchive" hidden>
+              <table class="table table--nowrap">
+                <thead><tr><th>Heure</th><th>Course</th><th class="r">Partants</th><th class="r">Classés</th><th class="r">DNF</th><th>Vainqueur</th><th></th></tr></thead>
+                <tbody id="tableCoursesArchive"></tbody>
+              </table>
+            </div>
             <div class="archive-pdf__barre" id="barreThemeArchive">
               <label class="field field--inline"><span>Modèle du PDF</span><select class="input" id="themeArchive"></select></label>
               <button class="btn btn--ghost btn--sm" id="btnRefairePdf"><svg class="ico"><use href="#i-reset"/></svg>Refaire le PDF</button>
