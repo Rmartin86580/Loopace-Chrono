@@ -4,8 +4,8 @@
 // « Historique » garde des copies datées (départ, fin de course, archivage, et une par jour d'utilisation).
 // Les fichiers ont le format de « Exporter une sauvegarde » : le bouton « Restaurer » les relit.
 
-import * as store from "./store.js?v=27";
-import { state } from "./store.js?v=27";
+import * as store from "./store.js?v=28";
+import { state } from "./store.js?v=28";
 
 // La version de test a ses propres fichiers : même dans le même dossier, elle ne touche pas à ceux de la stable
 const PREFIXE = store.TEST ? "Loopace_Chrono_TEST_" : "Loopace_Chrono_";

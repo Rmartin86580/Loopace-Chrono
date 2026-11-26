@@ -1,13 +1,13 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=27";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=27";
-import * as calc from "./calc.js?v=27";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=27";
-import * as excel from "./excel.js?v=27";
-import * as sauvegarde from "./sauvegarde.js?v=27";
-import { genererDiplomes } from "./diplomes.js?v=27";
-import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=27";
+import * as store from "./store.js?v=28";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=28";
+import * as calc from "./calc.js?v=28";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=28";
+import * as excel from "./excel.js?v=28";
+import * as sauvegarde from "./sauvegarde.js?v=28";
+import { genererDiplomes } from "./diplomes.js?v=28";
+import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=28";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -825,6 +825,22 @@ async function editerParticipant(i) {
       $("#erreurParticipant").textContent = `Le dossard « ${dossard} » est déjà attribué dans cette course.`;
       continue; // on rouvre le formulaire, saisie conservée
     }
+    // Dossard saisi à la main hors de la plage de la course, ou déjà donné dans une autre course de l'événement : on demande
+    if (dossard && dossard !== (i?.dossard ?? null)) {
+      const ailleurs = calc.dossardAilleurs(c, dossard, i?.id);
+      const horsPlage = c.plageDossards && !calc.dansPlage(dossard, c.plageDossards);
+      if (ailleurs || horsPlage) {
+        const raison = ailleurs ? `Le dossard ${dossard} est déjà donné dans « ${ailleurs.nom} », une autre course de l'événement : deux coureurs auraient le même numéro.`
+          : `Le dossard ${dossard} est hors de la plage de dossards de la course (${plageTexte(c.plageDossards)}).`;
+        const choix = await demander(ailleurs ? "Dossard déjà utilisé" : "Dossard hors plage", `${raison}
+
+Garder ce dossard quand même, ou le changer ?`, { oui: "Garder ce dossard", non: "Changer le dossard" });
+        if (choix !== "oui") {
+          $("#erreurParticipant").textContent = ailleurs ? `Dossard ${dossard} déjà donné dans « ${ailleurs.nom} ».` : `Plage de la course : ${plageTexte(c.plageDossards)}.`;
+          continue; // on rouvre le formulaire pour corriger le dossard
+        }
+      }
+    }
     const annee = parseInt(f.annee.value, 10);
     const valeurs = {
       dossard, nom: f.nom.value.trim(), prenom: f.prenom.value.trim(), annee: Number.isFinite(annee) ? annee : null,
@@ -839,11 +855,7 @@ async function editerParticipant(i) {
     else state.inscrits.push({ id: uid(), courseId: c.id, ...valeurs, depart: null, arrivee: null, statut: null });
     await store.sauver();
     rendre();
-    const ailleurs = calc.dossardAilleurs(c, dossard, i?.id);
-    const horsPlage = dossard && c.plageDossards && !calc.dansPlage(dossard, c.plageDossards);
-    if (ailleurs) toast(`Attention : le dossard ${dossard} est aussi donné dans « ${ailleurs.nom} ».`, "warn");
-    else if (horsPlage) toast(`Attention : le dossard ${dossard} est hors de la plage de la course (${plageTexte(c.plageDossards)}).`, "warn");
-    else toast(i ? "Participant modifié." : "Participant ajouté.");
+    toast(i ? "Participant modifié." : "Participant ajouté.");
     return;
   }
 }
