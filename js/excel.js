@@ -1,6 +1,6 @@
 // Import / export Excel avec SheetJS (chargé par index.html : window.XLSX).
 
-import { codeCategorie } from "./pdf.js?v=26";
+import { codeCategorie } from "./pdf.js?v=27";
 
 function lib() {
   if (!window.XLSX) throw new Error("La bibliothèque Excel n'est pas chargée (connexion nécessaire au premier lancement).");

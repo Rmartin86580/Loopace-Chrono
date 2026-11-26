@@ -1,13 +1,13 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=26";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=26";
-import * as calc from "./calc.js?v=26";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=26";
-import * as excel from "./excel.js?v=26";
-import * as sauvegarde from "./sauvegarde.js?v=26";
-import { genererDiplomes } from "./diplomes.js?v=26";
-import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=26";
+import * as store from "./store.js?v=27";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=27";
+import * as calc from "./calc.js?v=27";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=27";
+import * as excel from "./excel.js?v=27";
+import * as sauvegarde from "./sauvegarde.js?v=27";
+import { genererDiplomes } from "./diplomes.js?v=27";
+import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=27";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -2570,6 +2570,40 @@ $("#btnDemo").addEventListener("click", async () => {
   location.hash = "#courses";
   rendre();
   toast("Course de démonstration créée (16 participants).");
+});
+
+$("#btnDemoEvenement").addEventListener("click", async () => {
+  const date = new Date().toISOString().slice(0, 10);
+  const ev = { id: uid(), nom: "Cross des collèges (démo)", date, lieu: "Parc des sports", type: "Cross", themeId: THEME_DEFAUT_ID,
+    categories: "unss", categoriesSexe: true, equipes: "ecole", diplomesActifs: false };
+  state.evenements.push(ev);
+  const ecoles = ["Collège Vauban", "Collège Jules Ferry", "Collège Jean Moulin"];
+  const prenoms = ["Marie", "Thomas", "Léa", "Hugo", "Chloé", "Lucas", "Emma", "Nathan", "Inès", "Louis", "Jade", "Gabriel"];
+  const noms = ["Dupont", "Martin", "Bernard", "Petit", "Durand", "Moreau", "Laurent", "Simon", "Michel", "Lefebvre", "Garcia", "Roux", "Fournier", "Girard", "Bonnet", "Mercier", "Blanc", "Guerin"];
+  const annee = Number(date.slice(0, 4)) + (Number(date.slice(5, 7)) >= 9 ? 1 : 0); // année de fin de saison scolaire
+  [
+    { nom: "Benjamins", heure: "14:00", distance: 1.5, age: 12 },
+    { nom: "Minimes", heure: "14:30", distance: 2.4, age: 14 },
+    { nom: "Cadets", heure: "15:00", distance: 3.2, age: 16 },
+  ].forEach((x, n) => {
+    const id = uid();
+    const debut = 100 * (n + 1);
+    state.courses.push({ id, nom: x.nom, heure: x.heure, distance: x.distance, evenementId: ev.id, propres: [], plageDossards: [debut, debut + 99], enAttente: [],
+      chrono: { etat: "attente", depart: null, fin: null } });
+    prenoms.forEach((p, k) => state.inscrits.push({
+      id: uid(), courseId: id, dossard: String(debut + k), nom: noms[(k + n * 5) % noms.length], prenom: p, sexe: k % 2 ? "M" : "F",
+      annee: annee - x.age - (k % 2), ecole: ecoles[(k + n) % ecoles.length], categorie: "", telephone: "",
+      bulletin: k !== 5, depart: null, arrivee: null, statut: null,
+    }));
+  });
+  propagerEvenement(ev); // réglages communs et catégories automatiques
+  await store.sauver();
+  evenementSel = ev.id;
+  courseSel = null;
+  reinitialiserFiltres();
+  location.hash = "#courses";
+  rendre();
+  toast("Événement de démonstration créé : 3 courses, 36 participants.");
 });
 
 // ── Thème clair / sombre, partagé avec les autres sites Loopace ─

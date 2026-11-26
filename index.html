@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=26">
+  <link rel="stylesheet" href="styles.css?v=27">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
     // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
@@ -29,7 +29,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=26"></script>
+  <script type="module" src="js/app.js?v=27"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -366,6 +366,15 @@
               </div>
               <div class="reglage__actions">
                 <button class="btn btn--ghost btn--sm" id="btnDemo"><svg class="ico"><use href="#i-plus"/></svg>Créer</button>
+              </div>
+            </div>
+            <div class="reglage">
+              <div class="reglage__txt">
+                <b>Événement de démonstration</b>
+                <p class="meta">Un cross fictif de 3 courses (Benjamins, Minimes, Cadets) avec 36 participants et leurs dossards, pour essayer les événements et l'écran public à plusieurs courses.</p>
+              </div>
+              <div class="reglage__actions">
+                <button class="btn btn--ghost btn--sm" id="btnDemoEvenement"><svg class="ico"><use href="#i-plus"/></svg>Créer</button>
               </div>
             </div>
           </section>
