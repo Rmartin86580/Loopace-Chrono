@@ -1,10 +1,10 @@
 // Écran public : grand chronomètre et classement en direct de la course choisie dans l'onglet Chronomètre.
 // Lecture seule ; il se met à jour quand l'application principale enregistre (BroadcastChannel).
 
-import * as store from "./store.js?v=28";
-import { course, evenement, coursesDe, nomCourse } from "./store.js?v=28";
-import * as calc from "./calc.js?v=28";
-import { fmtDuree, nomComplet, compareDossard } from "./calc.js?v=28";
+import * as store from "./store.js?v=30";
+import { state, course, evenement, coursesDe, nomCourse } from "./store.js?v=30";
+import * as calc from "./calc.js?v=30";
+import { fmtDuree, nomComplet, compareDossard } from "./calc.js?v=30";
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -24,11 +24,14 @@ function rendre() {
   const lancees = calc.coursesEnCours().sort((a, b) => (a.heure || "99").localeCompare(b.heure || "99") || a.nom.localeCompare(b.nom, "fr", { numeric: true }));
   const multi = lancees.length >= 2;
   $("#ecranMulti").hidden = !multi;
-  document.querySelector(".screen__clock").hidden = multi;
-  document.querySelector(".screen__body").hidden = multi;
-  if (multi) { defilement(false); rendreMulti(lancees); tic(); return; }
-
   const c = course(courseId);
+  const by = !multi && calc.estBackyard(c);
+  $("#ecranBackyard").hidden = !by;
+  document.querySelector(".screen__clock").hidden = multi || by;
+  document.querySelector(".screen__body").hidden = multi || by;
+  if (multi) { defilement(false); rendreMulti(lancees); tic(); return; }
+  if (by) { defilement(false); rendreBackyard(c); tic(); return; }
+
   const etat = calc.etatChrono(c).etat;
   $("#ecranCourse").textContent = c ? nomCourse(c) : "Aucune course sélectionnée";
   $("#ecranLieu").textContent = c ? [c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km`].filter(Boolean).join(" · ") : "Choisissez une course dans l'onglet Chronomètre.";
@@ -68,6 +71,47 @@ function programme(ev) {
   }).join("");
 }
 
+// ── Backyard ──────────────────────────────────────────────────
+const fmtRebours = (ms) => {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
+  return `${h ? `${h}:${String(m).padStart(2, "0")}` : String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`;
+};
+const tuileEtat = (i, L, avant) => (avant ? "run" : i.statut ? "out" : i.passages?.[L - 1] != null ? "in" : "run");
+let boucleAffichee = null;
+
+function rendreBackyard(c) {
+  const etat = calc.etatChrono(c).etat;
+  const s = calc.situationBackyard(c);
+  const avant = etat === "attente";
+  boucleAffichee = s.boucle;
+  $("#ecranCourse").textContent = nomCourse(c);
+  $("#ecranLieu").textContent = ["Backyard", c.lieu, c.distance && `boucle de ${String(c.distance).replace(".", ",")} km`, `une boucle toutes les ${c.backyard?.minutes || 60} min`].filter(Boolean).join(" · ");
+  const tous = avant ? calc.situation(c.id).avecBulletin.sort((a, b) => compareDossard(a.dossard, b.dossard)) : [...s.actifs, ...s.elimines.sort((a, b) => compareDossard(a.dossard, b.dossard))];
+  $("#ebMur").innerHTML = tous.map((i) => `<span class="eb--${tuileEtat(i, s.boucle, avant)}" title="${esc(nomComplet(i))}">${esc(i.dossard) || "—"}</span>`).join("");
+  const gs = calc.gagnantsDe(c).map((id) => state.inscrits.find((i) => i.id === id)).filter(Boolean);
+  const g = gs.length === 1 ? gs[0] : null;
+  $("#ebActifs").textContent = etat === "arretee" && g ? `${g.dossard} ${nomComplet(g)}` : String(avant ? tous.length : s.actifs.length);
+  $("#ebActifsTxt").textContent = avant ? "coureurs au départ" : etat === "arretee" ? (g ? `gagne avec ${calc.nbBoucles(g)} boucles` : "— course terminée") : "encore en course";
+  // Boucles terminées par les meilleurs : celles d'avant la boucle en cours (course finie : le record)
+  const fait = etat === "en-cours" ? s.boucle - 1 : Math.max(0, ...s.partants.map(calc.nbBoucles));
+  const km = Number(c.distance) > 0 ? ` · ${(fait * c.distance).toFixed(1).replace(".", ",")} km` : "";
+  $("#ebKm").textContent = !avant && fait ? `${fait} boucle${fait > 1 ? "s" : ""} terminée${fait > 1 ? "s" : ""}${km}` : "";
+  $("#ebDerniers").textContent = s.elimines.length ? `Derniers éliminés : ${s.elimines.slice(0, 4).map((i) => `${i.dossard} ${nomComplet(i)} (boucle ${i.elimine?.boucle ?? "?"}, ${i.elimine?.motif || "éliminé"})`).join(" · ")}` : "";
+}
+
+function ticBackyard(c) {
+  const etat = calc.etatChrono(c).etat;
+  const e = calc.etatBackyard(c);
+  if (etat === "en-cours" && e.boucle !== boucleAffichee) { rendre(); return; }
+  const max = calc.maxBoucles(c);
+  $("#ebBoucle").textContent = etat === "attente" ? "Avant le départ" : `Boucle ${e.boucle}${max ? ` / ${max}` : ""}`;
+  $("#ebTitre").textContent = etat === "en-cours" ? (max && e.boucle >= max ? "Dernière boucle : fin dans" : "Prochain départ dans") : etat === "attente" ? "Une boucle toutes les" : "Durée de la course";
+  const el = $("#ebRebours");
+  el.textContent = etat === "en-cours" ? fmtRebours(e.restant) : etat === "attente" ? fmtRebours(e.periode) : fmtDuree(calc.tempsCourse(c));
+  el.classList.toggle("is-alerte", etat === "en-cours" && e.restant <= 60000);
+}
+
 // ── Vue à plusieurs courses ───────────────────────────────────
 const PAR_PAGE = 3;
 const DUREE_PAGE = 15000;
@@ -83,6 +127,16 @@ function rendreMulti(lancees) {
   const montrees = lancees.slice(pageMulti * PAR_PAGE, (pageMulti + 1) * PAR_PAGE);
   $("#ecranMulti").style.setProperty("--nb", montrees.length);
   $("#ecranMulti").innerHTML = montrees.map((c) => {
+    if (calc.estBackyard(c)) {
+      const b = calc.situationBackyard(c);
+      const mur = [...b.actifs, ...b.elimines].map((i) => `<span class="eb--${tuileEtat(i, b.boucle, false)}">${esc(i.dossard)}</span>`).join("");
+      return `<article class="multi__col">
+        <h2>${esc(ev ? c.nom : nomCourse(c))}</h2>
+        <div class="multi__time" data-chrono="${c.id}">00:00</div>
+        <p class="multi__counts"><span>Boucle <b>${b.boucle}</b></span><span>En course : <b>${b.actifs.length}</b></span><span>Rentrés : <b>${b.rentres.length}</b></span></p>
+        <div class="multi__liste"><div class="multi__mur">${mur}</div></div>
+      </article>`;
+    }
     const s = calc.situation(c.id);
     const eq = calc.equipesDe(c, s.tous || []);
     const ligne = (i, pos) => `<tr class="${pos <= 3 ? `podium podium--${pos}` : ""}"><td><b>${pos}</b></td><td>${esc(i.dossard)}</td><td>${esc(nomComplet(i))}</td>
@@ -103,11 +157,15 @@ function rendreMulti(lancees) {
 }
 
 function tic() {
-  document.querySelectorAll("[data-chrono]").forEach((el) => { el.textContent = fmtDuree(calc.tempsCourse(course(el.dataset.chrono))); });
+  document.querySelectorAll("[data-chrono]").forEach((el) => {
+    const x = course(el.dataset.chrono);
+    el.textContent = calc.estBackyard(x) ? fmtRebours(calc.etatBackyard(x).restant) : fmtDuree(calc.tempsCourse(x));
+  });
   // Plus de 3 courses : on change de page toutes les 15 s
   const lancees = calc.coursesEnCours();
   if (lancees.length > PAR_PAGE && Math.floor(Date.now() / DUREE_PAGE) % Math.ceil(lancees.length / PAR_PAGE) !== pageMulti) rendre();
   const c = course(courseId);
+  if (!$("#ecranBackyard").hidden && calc.estBackyard(c)) ticBackyard(c);
   const el = $("#ecranChrono");
   el.textContent = fmtDuree(calc.tempsCourse(c));
   el.classList.toggle("is-running", calc.etatChrono(c).etat === "en-cours");

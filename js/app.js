@@ -1,13 +1,13 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=28";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=28";
-import * as calc from "./calc.js?v=28";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=28";
-import * as excel from "./excel.js?v=28";
-import * as sauvegarde from "./sauvegarde.js?v=28";
-import { genererDiplomes } from "./diplomes.js?v=28";
-import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=28";
+import * as store from "./store.js?v=30";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=30";
+import * as calc from "./calc.js?v=30";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=30";
+import * as excel from "./excel.js?v=30";
+import * as sauvegarde from "./sauvegarde.js?v=30";
+import { genererDiplomes } from "./diplomes.js?v=30";
+import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=30";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -168,7 +168,7 @@ function reinitialiserFiltres() {
 
 function itemCourse(c, dansEvenement) {
   const etat = calc.etatChrono(c).etat;
-  const meta = dansEvenement ? [c.heure, c.distance && `${String(c.distance).replace(".", ",")} km`].filter(Boolean).join(" · ") : [fmtDate(c.date), c.heure, c.lieu].filter(Boolean).join(" · ");
+  const meta = [calc.estBackyard(c) && "Backyard", ...(dansEvenement ? [c.heure, c.distance && `${String(c.distance).replace(".", ",")} km`] : [fmtDate(c.date), c.heure, c.lieu])].filter(Boolean).join(" · ");
   return `<li><button class="course-item${c.id === courseSel ? " is-on" : ""}" data-id="${c.id}">
       <span class="course-item__name">${esc(c.nom)}</span>
       <span class="course-item__meta">${esc(meta) || "&nbsp;"}</span>
@@ -212,7 +212,7 @@ function rendreCourses() {
   $("#btnRetourEvenement").textContent = evCourse ? `‹ ${evCourse.nom}` : "";
   $("#titreCourse").textContent = c.nom;
   const th = theme(c.themeId);
-  $("#metaCourse").textContent = [fmtDate(c.date), c.heure && `départ ${c.heure}`, c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km`, c.type, c.plageDossards && `dossards ${plageTexte(c.plageDossards)}`, th && `modèle « ${th.nom} »`].filter(Boolean).join(" · ");
+  $("#metaCourse").textContent = [fmtDate(c.date), c.heure && `départ ${c.heure}`, c.lieu, c.distance && `${String(c.distance).replace(".", ",")} km${calc.estBackyard(c) ? " par boucle" : ""}`, c.type, calc.estBackyard(c) && `backyard, une boucle toutes les ${c.backyard?.minutes || 60} min`, c.plageDossards && `dossards ${plageTexte(c.plageDossards)}`, th && `modèle « ${th.nom} »`].filter(Boolean).join(" · ");
 
   const tous = inscritsDe(c.id).sort(comparerParticipants);
   const eq = calc.equipesDe(c, tous);
@@ -344,6 +344,27 @@ async function editerCourse(c, { evenementId = null } = {}) {
   f.dossardsDe.value = c?.plageDossards?.[0] ?? "";
   f.dossardsA.value = c?.plageDossards?.[1] ?? "";
   f.type.value = c?.type || "";
+  // Format : classique ou backyard (plus modifiable une fois la course partie)
+  f.mode.value = c?.mode || "";
+  f.byMinutes.value = c?.backyard?.minutes ?? 60;
+  f.bySignaux.checked = c?.backyard?.signaux !== false;
+  f.byMax.value = c?.backyard?.maxBoucles || "";
+  const aideMax = () => {
+    const n = parseInt(f.byMax.value, 10) || 0, m = parseInt(f.byMinutes.value, 10) || 60;
+    $("#aideByMax").textContent = n ? `soit ${Math.floor(n * m / 60) ? `${Math.floor(n * m / 60)} h` : ""}${n * m % 60 ? ` ${n * m % 60} min` : ""} de course au plus`.replace("soit  ", "soit ") : "vide : jusqu'au dernier coureur";
+  };
+  f.byMax.oninput = f.byMinutes.oninput = aideMax;
+  aideMax();
+  const modeBloque = !!c && calc.etatChrono(c).etat !== "attente";
+  f.mode.disabled = modeBloque;
+  $("#aideModeBloque").hidden = !modeBloque;
+  const montrerFormat = () => {
+    const by = f.mode.value === "backyard";
+    $$("#formCourse [data-backyard]").forEach((el) => { el.hidden = !by; });
+    $("#labelDistance").textContent = by ? "Longueur de la boucle (km)" : "Distance (km)";
+  };
+  f.mode.onchange = montrerFormat;
+  montrerFormat();
   optionsThemes($("#selectTheme"), c ? c.themeId : THEME_DEFAUT_ID);
   // Nouvelle course : catégories FFA par défaut ; course existante : son réglage (saisie libre si jamais réglé)
   const bareme = c ? c.categories || "libre" : "ffa";
@@ -364,6 +385,8 @@ async function editerCourse(c, { evenementId = null } = {}) {
     plageDossards: lirePlage(f.dossardsDe.value, f.dossardsA.value),
     categories: f.categories.value, categoriesSexe: f.categoriesSexe.checked, equipes: f.equipes.value, diplomesActifs: f.diplomesActifs.checked,
     evenementId: f.evenementId.value || null,
+    mode: f.mode.value || null,
+    backyard: f.mode.value === "backyard" ? { minutes: Math.min(1440, Math.max(1, parseInt(f.byMinutes.value, 10) || 60)), signaux: f.bySignaux.checked, maxBoucles: Math.min(999, Math.max(0, parseInt(f.byMax.value, 10) || 0)) } : null,
   };
   // Dans un événement : les réglages différents de ceux de l'événement ne valent que pour cette course
   const ev = evenement(valeurs.evenementId);
@@ -1099,6 +1122,9 @@ function rendreChrono() {
   if (!chronoSel && lancees.length) choisirCourseChrono(lancees[0].id);
 
   const c = course(chronoSel);
+  const by = calc.estBackyard(c);
+  $(".chrono-grid").hidden = by;
+  $("#chronoBackyard").hidden = !by;
   const eqChrono = calc.equipesDe(c, c ? inscritsDe(c.id) : []);
   optionsCourses($("#chronoCourse"), chronoSel);
   const etat = calc.etatChrono(c).etat;
@@ -1145,6 +1171,7 @@ function rendreChrono() {
   $("#listeEnCours").innerHTML = attente.map((i) => `<li${etat === "attente" ? "" : ` data-id="${i.id}" title="Corriger"`}><b>${esc(i.dossard) || "—"}</b><span>${esc(nomComplet(i))}</span><em>${esc(calc.equipeAffichee(i, eqChrono))}</em></li>`).join("")
     || `<li class="muted-li">${etat === "arretee" ? "Plus personne en course." : "Personne."}</li>`;
 
+  if (by) rendreBackyard(c);
   tic();
 }
 
@@ -1153,6 +1180,7 @@ function tic() {
   $("#chronoAffichage").textContent = fmtDuree(calc.tempsCourse(c), true);
   $("#chronoAffichage").classList.toggle("is-running", calc.etatChrono(c).etat === "en-cours");
   $$("#coursesLancees [data-temps]").forEach((b) => { b.textContent = fmtDuree(calc.tempsCourse(course(b.dataset.temps))); });
+  if (calc.estBackyard(c)) ticBackyard(c);
 }
 
 /** Petit signe à côté d'un temps ou d'un statut corrigé à la main. */
@@ -1189,7 +1217,9 @@ $("#btnArret").addEventListener("click", async () => {
   const c = course(chronoSel);
   if (!c) return;
   const reste = calc.situation(c.id).enCours.length;
-  const ok = await confirmer("Arrêter la course", "Arrêter le chronomètre ?" + (reste ? `\n\nLes ${reste} participant(s) encore en course seront classés DNF.` : "") + "\n\nPour relancer, il faudra faire une remise à zéro.", { oui: "Arrêter", danger: true });
+  const texte = calc.estBackyard(c) ? `Arrêter le backyard maintenant, sans gagnant ?${reste ? `\n\nLes ${reste} coureur(s) encore en course seront classés sur les boucles déjà finies.` : ""}`
+    : "Arrêter le chronomètre ?" + (reste ? `\n\nLes ${reste} participant(s) encore en course seront classés DNF.` : "");
+  const ok = await confirmer("Arrêter la course", texte + "\n\nPour relancer, il faudra faire une remise à zéro.", { oui: "Arrêter", danger: true });
   if (!ok) return;
   calc.arreter(c.id);
   await store.sauver();
@@ -1341,6 +1371,247 @@ $("#btnEcran").addEventListener("click", () => {
   if (!fenetreEcran) toast("Le navigateur a bloqué la fenêtre : autorisez les fenêtres pop-up pour ce site.", "warn");
 });
 
+// ── Backyard : écran du chronométreur ────────────────────────
+const CLE_BY_VUE = "loopace-chrono-backyard-vue";
+let byVue = "grille";
+try { if (localStorage.getItem(CLE_BY_VUE) === "tableau") byVue = "tableau"; } catch { /* stockage indisponible */ }
+let byAbandon = false;
+
+/** Compte à rebours : « 12:34 », ou « 1:02:03 » au-delà d'une heure (seconde entamée comptée). */
+function fmtRebours(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
+  return `${h ? `${h}:${String(m).padStart(2, "0")}` : String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`;
+}
+/** Temps mis pour la boucle k (1, 2…) ; null s'il ne l'a pas finie. */
+const tempsBoucle = (c, i, k) => calc.tempsBoucleBy(c, i, k);
+const kmBoucles = (c, n) => (Number(c.distance) > 0 ? ` · ${(n * c.distance).toFixed(1).replace(".", ",")} km` : "");
+const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? "s" : ""}`;
+
+function rendreBackyard(c) {
+  const etat = calc.etatChrono(c).etat;
+  const s = calc.situationBackyard(c);
+  const L = s.boucle;
+  const avant = etat === "attente";
+  const enCourse = etat === "en-cours";
+  const P = calc.periodeBackyard(c);
+
+  $("#saisieBackyard").disabled = !enCourse;
+  $("#formBackyard button[type=submit]").disabled = !enCourse;
+  $("#btnModeAbandon").disabled = !enCourse;
+  if (!enCourse) byAbandon = false;
+  $("#btnModeAbandon").classList.toggle("is-abandon", byAbandon);
+  $("#btnModeAbandon").textContent = byAbandon ? "Touchez le dossard (annuler)" : "Abandon / ne repart pas";
+  $$("[data-by-vue]").forEach((b) => b.classList.toggle("is-on", b.dataset.byVue === byVue));
+
+  // Fin de course
+  const fin = $("#byFin");
+  fin.hidden = etat !== "arretee";
+  if (etat === "arretee") {
+    const gs = calc.gagnantsDe(c).map((id) => state.inscrits.find((i) => i.id === id)).filter(Boolean);
+    const g = gs.length === 1 ? gs[0] : null;
+    const arretMain = s.elimines.some((i) => i.elimine?.motif === "course arrêtée");
+    fin.textContent = gs.length > 1 ? `Course terminée à la limite de ${pluriel(calc.nbBoucles(gs[0]), "boucle")}${kmBoucles(c, calc.nbBoucles(gs[0]))} : ${gs.length} gagnants ex æquo (${gs.map((i) => i.dossard).join(", ")}).`
+      : g ? `Course terminée : ${g.dossard} ${nomComplet(g)} gagne avec ${pluriel(calc.nbBoucles(g), "boucle")}${kmBoucles(c, calc.nbBoucles(g))}.`
+      : arretMain ? "Course arrêtée à la main : classement sur les boucles déjà finies."
+      : `Course terminée : personne n'a fini la boucle ${c.bouclesCloses || L}, pas de gagnant.`;
+  }
+
+  // Grille de dossards
+  const tuiles = avant ? calc.situation(c.id).avecBulletin.sort((a, b) => compareDossard(a.dossard, b.dossard)) : s.partants;
+  const etatTuile = (i) => (avant ? "attente" : i.statut ? "out" : i.passages?.[L - 1] != null ? "in" : "run");
+  const titreTuile = (i) => {
+    const e = etatTuile(i);
+    const detail = e === "in" ? `rentré en ${fmtRebours(tempsBoucle(c, i, L))}` : e === "run" ? `sur la boucle ${L}` : e === "out" ? `éliminé (${i.elimine?.motif || i.statut}, boucle ${i.elimine?.boucle ?? "?"})` : "partant prévu";
+    return `${nomComplet(i)} — ${detail}`;
+  };
+  $("#byGrille").classList.toggle("is-abandon", byAbandon);
+  $("#byGrille").hidden = byVue !== "grille";
+  $("#byGrille").innerHTML = tuiles.map((i) => `<button type="button" class="by-tuile by-tuile--${etatTuile(i)}" data-id="${i.id}" title="${esc(titreTuile(i))}">${esc(i.dossard) || "—"}</button>`).join("")
+    || `<p class="muted">Aucun partant prévu : il faut des participants au bulletin complet.</p>`;
+
+  // Tableau : les trois dernières boucles
+  $("#byTableau").hidden = byVue !== "tableau";
+  const cols = [L - 2, L - 1, L].filter((k) => k >= 1);
+  $("#byTableauTete").innerHTML = `<tr><th>Dossard</th><th>Nom</th>${cols.map((k) => `<th class="r">Boucle ${k}</th>`).join("")}<th class="r">Boucles</th><th>État</th></tr>`;
+  const lignes = avant ? tuiles : [...s.actifs, ...s.elimines];
+  $("#byTableauCorps").innerHTML = lignes.map((i) => {
+    const e = etatTuile(i);
+    const cellules = cols.map((k) => {
+      const t = tempsBoucle(c, i, k);
+      if (t != null) return `<td class="r mono${k === L ? " by-ok" : ""}">${fmtRebours(t)}</td>`;
+      return `<td class="r">${k === L && e === "run" ? '<span class="by-attente">…</span>' : '<span class="muted">—</span>'}</td>`;
+    }).join("");
+    const libelle = { in: '<span class="by-ok">rentré</span>', run: '<span class="by-attente">sur la boucle</span>', attente: '<span class="muted">au départ</span>',
+      out: `<span class="by-ko">${esc(i.elimine?.motif || "éliminé")}${i.elimine ? `, boucle ${i.elimine.boucle}` : ""}</span>` }[e];
+    return `<tr><td><b>${esc(i.dossard)}</b></td><td>${esc(nomComplet(i))}</td>${cellules}<td class="r"><b>${calc.nbBoucles(i)}</b></td><td>${libelle}</td></tr>`;
+  }).join("") || `<tr><td colspan="${cols.length + 4}" class="muted c">Personne.</td></tr>`;
+
+  // Listes : attendus, rentrés (le plus récent en haut), éliminés
+  const attendus = enCourse ? s.surBoucle : [];
+  $("#nbByAttendus").textContent = enCourse ? String(attendus.length) : "";
+  $("#byAttendus").innerHTML = attendus.map((i) => `<li><b>${esc(i.dossard)}</b><span>${esc(nomComplet(i))}</span><em>${pluriel(calc.nbBoucles(i), "boucle")} finie${calc.nbBoucles(i) > 1 ? "s" : ""}</em></li>`).join("")
+    || `<li class="muted-li">${enCourse ? "Tout le monde est rentré." : avant ? "La course n'est pas partie." : "Course terminée."}</li>`;
+  const rentres = enCourse ? [...s.rentres].sort((a, b) => b.passages[L - 1] - a.passages[L - 1]) : [];
+  $("#nbByRentres").textContent = enCourse ? String(rentres.length) : "";
+  $("#byRentresListe").innerHTML = rentres.map((i) => {
+    const t = tempsBoucle(c, i, L);
+    return `<li><b>${esc(i.dossard)}</b><span>${esc(nomComplet(i))}</span><em><span class="by-ok">${fmtRebours(t)}</span> · repos ${fmtRebours(P - t)}</em></li>`;
+  }).join("") || `<li class="muted-li">${enCourse ? "Personne pour l'instant." : "—"}</li>`;
+  $("#nbByElimines").textContent = s.elimines.length ? String(s.elimines.length) : "";
+  $("#byEliminesListe").innerHTML = s.elimines.map((i) => `<li><b>${esc(i.dossard)}</b><span>${esc(nomComplet(i))}</span><em>${esc(i.elimine?.motif || "éliminé")}${i.elimine ? `, boucle ${i.elimine.boucle}` : ""} · ${pluriel(calc.nbBoucles(i), "boucle")}</em></li>`).join("")
+    || `<li class="muted-li">Personne.</li>`;
+
+  $("#byRentres").textContent = avant ? "—" : `${s.rentres.length} / ${s.actifs.length}`;
+  $("#byElimines").textContent = avant ? "—" : String(s.elimines.length);
+  ticBackyard(c);
+}
+
+function ticBackyard(c) {
+  const etat = calc.etatChrono(c).etat;
+  const e = calc.etatBackyard(c);
+  const el = $("#byRebours");
+  const max = calc.maxBoucles(c);
+  $("#byBoucle").textContent = etat === "attente" ? (max ? `— / ${max}` : "—") : `${e.boucle}${max ? ` / ${max}` : ""}`;
+  if (etat === "en-cours") {
+    $("#byReboursTitre").textContent = max && e.boucle >= max ? "Fin de la dernière boucle dans" : "Prochain départ dans";
+    el.textContent = fmtRebours(e.restant);
+  } else if (etat === "attente") {
+    $("#byReboursTitre").textContent = "Une boucle toutes les";
+    el.textContent = fmtRebours(e.periode);
+  } else {
+    $("#byReboursTitre").textContent = "Durée de la course";
+    el.textContent = fmtDuree(calc.tempsCourse(c));
+  }
+  el.classList.toggle("is-running", etat === "en-cours" && e.restant > 60000);
+  el.classList.toggle("is-alerte", etat === "en-cours" && e.restant <= 60000);
+}
+
+/** Annonce les éliminations de la sonnerie et la fin de course. */
+function annoncerBackyard(c, r) {
+  if (!r) return;
+  const nom = calc.coursesEnCours().some((x) => x.id !== c.id) ? `${c.nom} : ` : ""; // plusieurs courses lancées : on dit laquelle
+  if (r.elimines?.length) {
+    const liste = r.elimines.slice(0, 10).map((i) => i.dossard).join(", ");
+    toast(`${nom}${r.elimines.length} éliminé(s) hors délai à la fin de la boucle ${r.elimines[0].elimine.boucle} : ${liste}${r.elimines.length > 10 ? "…" : ""}`, "warn");
+  }
+  if (r.termine) {
+    bip(BIP_FIN);
+    sauvegarde.copie();
+    const gs = r.gagnants || [];
+    toast(gs.length > 1 ? `${nom}limite atteinte : ${gs.length} gagnants ex æquo avec ${pluriel(calc.nbBoucles(gs[0]), "boucle")} (${gs.map((i) => i.dossard).join(", ")}) !`
+      : r.gagnant ? `${nom}${r.gagnant.dossard} ${nomComplet(r.gagnant)} gagne le backyard avec ${pluriel(calc.nbBoucles(r.gagnant), "boucle")} !`
+      : `${nom}plus personne en course, pas de gagnant. Course terminée.`);
+  }
+}
+
+/** Passage d'un dossard sur la ligne (saisie ou grille). */
+async function passageBackyard(c, dossard) {
+  const r = calc.arrivee(c.id, dossard);
+  const msg = $("#byMessage");
+  if (!r.ok) {
+    msg.textContent = r.message;
+    msg.className = "arrival__msg is-err";
+    bip(BIP_ERREUR);
+    return;
+  }
+  await store.sauver();
+  msg.textContent = `✓ ${r.inscrit.dossard} — ${nomComplet(r.inscrit)} — boucle ${r.boucle} en ${fmtRebours(r.tempsBoucle)}`;
+  msg.className = "arrival__msg is-ok";
+  rendre();
+  if (r.fin) annoncerBackyard(c, r.fin); else bip(BIP_OK);
+}
+
+$("#formBackyard").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const champ = $("#saisieBackyard");
+  const dossard = champ.value.trim();
+  champ.value = "";
+  champ.focus();
+  const c = course(chronoSel);
+  if (dossard && c) await passageBackyard(c, dossard);
+});
+
+$("#btnModeAbandon").addEventListener("click", () => { byAbandon = !byAbandon; rendreBackyard(course(chronoSel)); });
+$$("[data-by-vue]").forEach((b) => b.addEventListener("click", () => {
+  byVue = b.dataset.byVue;
+  try { localStorage.setItem(CLE_BY_VUE, byVue); } catch { /* stockage indisponible */ }
+  rendreBackyard(course(chronoSel));
+}));
+
+$("#byGrille").addEventListener("click", async (e) => {
+  const b = e.target.closest(".by-tuile[data-id]");
+  const c = course(chronoSel);
+  if (!b || !c || calc.etatChrono(c).etat !== "en-cours") return;
+  const i = state.inscrits.find((x) => x.id === b.dataset.id);
+  if (!i) return;
+  const { boucle: L } = calc.etatBackyard(c);
+  const qui = `${i.dossard} ${nomComplet(i)}`;
+  if (byAbandon) {
+    byAbandon = false;
+    const rentre = i.passages?.[L - 1] != null;
+    const question = rentre ? [`Ne repart pas`, `${qui} est rentré de la boucle ${L} et ne repart pas pour la boucle ${L + 1} ?\n\nIl garde ${calc.nbBoucles(i) > 1 ? `ses ${calc.nbBoucles(i)} boucles` : "sa boucle"}.`, "Ne repart pas"]
+      : ["Abandon", `${qui} abandonne pendant la boucle ${L} ?\n\nCette boucle ne lui est pas comptée.`, "Abandon"];
+    if (!i.statut && await confirmer(question[0], question[1], { oui: question[2], danger: true })) {
+      const r = calc.abandonBackyard(c, i);
+      await store.sauver();
+      toast(`${qui} : ${rentre ? "ne repart pas" : "abandon"} enregistré.`);
+      rendre();
+      annoncerBackyard(c, r);
+    } else rendre();
+    return;
+  }
+  if (i.statut) {
+    const e2 = i.elimine || {};
+    if (!calc.rattrapableBackyard(c, i)) { toast(`${qui} est éliminé (${e2.motif || "hors course"}, boucle ${e2.boucle ?? "?"}).`, "warn"); return; }
+    const texte = e2.motif === "abandon" ? `Annuler l'abandon de ${qui} ? Il reste en course sur la boucle ${L}.`
+      : e2.motif === "ne repart pas" ? `Finalement, ${qui} repart ? Il est remis en course${e2.boucle === L ? ` sur la boucle ${L}` : ""}.`
+      : `${qui} a été éliminé hors délai à la fin de la boucle ${e2.boucle}.\n\nIl était en fait rentré à temps (passage oublié) ? Il sera remis en course sur la boucle ${L}.`;
+    if (!await confirmer("Remettre en course", texte, { oui: "Remettre en course" })) return;
+    calc.remettreBackyard(c, i);
+    await store.sauver();
+    rendre();
+    toast(`${qui} est de nouveau en course.`);
+    return;
+  }
+  if (i.passages?.[L - 1] != null) {
+    if (!await confirmer("Annuler le passage", `Annuler le retour de ${qui} sur la boucle ${L} ? Il sera de nouveau attendu.`, { oui: "Annuler le passage" })) return;
+    calc.annulerPassage(c, i);
+    await store.sauver();
+    rendre();
+    return;
+  }
+  await passageBackyard(c, i.dossard);
+});
+
+// Toutes les secondes, sur toutes les courses backyard lancées : sonnerie de fin de boucle, éliminations,
+// bips avant le départ suivant. Tourne quel que soit l'onglet ouvert.
+const bouclesVues = new Map();
+const signauxFaits = new Set();
+setInterval(async () => {
+  let change = false;
+  for (const c of calc.coursesEnCours().filter(calc.estBackyard)) {
+    const r = calc.majBackyard(c);
+    if (r) { change = true; annoncerBackyard(c, r); }
+    if (calc.etatChrono(c).etat !== "en-cours") continue;
+    const e = calc.etatBackyard(c);
+    if (bouclesVues.get(c.id) !== e.boucle) {
+      if (bouclesVues.has(c.id)) { change = true; if (c.backyard?.signaux !== false) bip(BIP_FIN); } // départ de la boucle suivante
+      bouclesVues.set(c.id, e.boucle);
+    }
+    if (c.backyard?.signaux !== false && !(calc.maxBoucles(c) && e.boucle >= calc.maxBoucles(c))) { // pas de départ après la dernière boucle
+      [3, 2, 1].forEach((n) => {
+        const cle = `${c.id}|${e.boucle}|${n}`;
+        if (e.restant <= n * 60000 && e.restant > n * 60000 - 3000 && e.periode > n * 60000 && !signauxFaits.has(cle)) {
+          signauxFaits.add(cle);
+          bip(Array(n).fill([2700, 0.22]));
+        }
+      });
+    }
+  }
+  if (change) { await store.sauver(); rendre(); }
+}, 1000);
+
 // ══════════════════════════════════════════════════════════════
 // RÉSULTATS
 // ══════════════════════════════════════════════════════════════
@@ -1353,6 +1624,7 @@ function rendreResultats() {
   optionsCourses($("#resultatsCourse"), resultatsSel);
   const c = course(resultatsSel);
   const res = c ? calc.resultats(c.id) : null;
+  $("#segIndividuel thead th:last-child").textContent = res?.backyard ? "Boucles" : "Temps";
   const vide = !res || !res.individuel.length;
   ["#btnPdf", "#btnExcelResultats", "#btnExportFFA", "#btnDiplomes", "#btnArchiver"].forEach((s) => { $(s).disabled = vide; });
   $("#btnDiplomes").hidden = !c?.diplomesActifs; // option de la fiche course
@@ -1456,6 +1728,7 @@ async function corrigerCoureur(id) {
   const i = state.inscrits.find((x) => x.id === id);
   const c = i && course(i.courseId);
   if (!c || c.chrono?.depart == null) return;
+  if (calc.estBackyard(c)) { toast("Backyard : les passages se corrigent dans l'onglet Chronomètre, en touchant le dossard du coureur.", "warn"); return; }
   const f = $("#formCorrection");
   const enCourse = calc.etatChrono(c).etat === "en-cours";
   const statut = i.statut === "DSQ" ? "DSQ" : i.statut === "DNF" ? "DNF" : i.arrivee != null ? "arrive" : "encours";
@@ -2582,6 +2855,30 @@ $("#btnDemo").addEventListener("click", async () => {
   location.hash = "#courses";
   rendre();
   toast("Course de démonstration créée (16 participants).");
+});
+
+$("#btnDemoBackyard").addEventListener("click", async () => {
+  const id = uid();
+  const date = new Date().toISOString().slice(0, 10);
+  state.courses.push({ id, nom: "Backyard de démonstration", date, heure: "08:00", lieu: "Parc des Lucioles", distance: 6.706, type: "Trail",
+    mode: "backyard", backyard: { minutes: 5, signaux: true }, themeId: THEME_DEFAUT_ID, categories: "ffa", categoriesSexe: false, equipes: "club",
+    plageDossards: [1, 99], enAttente: [], chrono: { etat: "attente", depart: null, fin: null } });
+  const clubs = ["AC Poitiers", "Trail des Lucioles", "US Châtellerault", ""];
+  const prenoms = ["Hugo", "Emma", "Léa", "Paul", "Inès", "Noé", "Tom", "Zoé", "Jade", "Léo", "Lina", "Sam"];
+  const noms = ["Roux", "Leroy", "Martin", "Dubois", "Petit", "Garcia", "Girard", "Blanc", "Morel", "Faure", "André", "Mercier"];
+  const annee = Number(date.slice(0, 4));
+  prenoms.forEach((p, k) => state.inscrits.push({
+    id: uid(), courseId: id, dossard: String(k + 1), nom: noms[k], prenom: p, sexe: [1, 2, 4, 7, 8, 10].includes(k) ? "F" : "M", annee: annee - 24 - 3 * k,
+    club: clubs[k % clubs.length], ecole: "", categorie: "", telephone: "", bulletin: true, depart: null, arrivee: null, statut: null,
+  }));
+  calc.appliquerCategories(id);
+  await store.sauver();
+  courseSel = id;
+  evenementSel = null;
+  reinitialiserFiltres();
+  location.hash = "#courses";
+  rendre();
+  toast("Backyard de démonstration créé : 12 coureurs, une boucle toutes les 5 minutes.");
 });
 
 $("#btnDemoEvenement").addEventListener("click", async () => {

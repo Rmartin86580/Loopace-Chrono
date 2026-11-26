@@ -1,7 +1,7 @@
 // Logique métier : départ, arrivées, arrêt, classements individuel, par école et par club.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe, theme } from "./store.js?v=28";
+import { state, course, inscritsDe, theme } from "./store.js?v=30";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");
@@ -112,8 +112,10 @@ export function demarrer(courseId) {
     i.depart = i.bulletin ? now : null;
     i.arrivee = null;
     i.statut = null;
+    if (estBackyard(c)) { i.passages = []; i.elimine = null; }
   });
   c.chrono = { etat: "en-cours", depart: now, fin: null };
+  if (estBackyard(c)) Object.assign(c, { bouclesCloses: 0, gagnantId: null, gagnants: [] });
 }
 
 /**
@@ -124,6 +126,7 @@ export function arrivee(courseId, dossard) {
   const c = course(courseId);
   if (etatChrono(c).etat !== "en-cours") return { ok: false, message: "La course n'est pas en cours." };
   const heure = maintenant();
+  if (estBackyard(c)) return passageBackyard(c, dossard, heure);
   const i = inscritsDe(courseId).find((x) => memeDossard(x.dossard, dossard));
   // Dossard inconnu ou coureur sans bulletin : l'heure de passage est gardée, à rattacher ensuite
   if (!i) return mettreEnAttente(c, dossard, heure, `Dossard ${dossard} inconnu`);
@@ -237,6 +240,10 @@ export function lireDuree(txt) {
 /** Arrêt manuel : les partants pas encore arrivés passent DNF. */
 export function arreter(courseId) {
   const c = course(courseId);
+  if (estBackyard(c)) {
+    const b = etatBackyard(c).boucle;
+    situation(courseId).enCours.forEach((i) => { i.statut = "DNF"; i.elimine = { boucle: b, motif: "course arrêtée" }; });
+  }
   situation(courseId).enCours.forEach((i) => { i.statut = "DNF"; });
   c.chrono = { ...etatChrono(c), etat: "arretee", fin: maintenant() };
 }
@@ -255,8 +262,199 @@ export function annulerDerniere(courseId) {
 
 /** Remise à zéro : tous les temps de la course sont effacés. */
 export function reinitialiser(courseId) {
-  inscritsDe(courseId).forEach((i) => { i.depart = null; i.arrivee = null; i.statut = null; i.motif = ""; i.corrige = false; });
-  Object.assign(course(courseId), { chrono: { etat: "attente", depart: null, fin: null }, enAttente: [] });
+  inscritsDe(courseId).forEach((i) => { i.depart = null; i.arrivee = null; i.statut = null; i.motif = ""; i.corrige = false; i.passages = []; i.elimine = null; });
+  Object.assign(course(courseId), { chrono: { etat: "attente", depart: null, fin: null }, enAttente: [], bouclesCloses: 0, gagnantId: null, gagnants: [] });
+}
+
+// ── Backyard ──────────────────────────────────────────────────
+// Une boucle à boucler à chaque période (60 min en général), départ de tous au début de chaque période.
+// Qui n'est pas rentré quand la période suivante commence est éliminé (« hors délai »).
+// Le gagnant est le seul à finir une boucle que plus personne d'autre ne finit ; si personne ne la finit, pas de gagnant.
+// Avec une limite (c.backyard.maxBoucles), ceux qui finissent la dernière boucle sont tous gagnants, ex æquo.
+// Inscrit : passages[k] = heure de retour de la boucle k + 1 ; elimine = { boucle, motif }.
+// Motifs : « hors délai », « abandon » (pendant la boucle), « ne repart pas » (rentré, ne prend pas le départ suivant),
+// « course arrêtée ». Course : gagnants = [ids] (gagnantId = le gagnant quand il est seul).
+export const estBackyard = (c) => c?.mode === "backyard";
+export const periodeBackyard = (c) => Math.max(1, Number(c?.backyard?.minutes) || 60) * 60000;
+export const maxBoucles = (c) => Math.max(0, parseInt(c?.backyard?.maxBoucles, 10) || 0);
+export const nbBoucles = (i) => (i.passages || []).filter((x) => x != null).length;
+export const gagnantsDe = (c) => (Array.isArray(c?.gagnants) && c.gagnants.length ? c.gagnants : c?.gagnantId ? [c.gagnantId] : []);
+
+/** Temps mis pour la boucle k (1, 2…) ; null s'il ne l'a pas finie. */
+export function tempsBoucleBy(c, i, k) {
+  const t = i.passages?.[k - 1];
+  return t == null || c?.chrono?.depart == null ? null : t - (c.chrono.depart + (k - 1) * periodeBackyard(c));
+}
+
+/** Boucle en cours, temps écoulé depuis son départ et temps restant avant le départ suivant. */
+export function etatBackyard(c, now = maintenant()) {
+  const P = periodeBackyard(c);
+  const ch = etatChrono(c);
+  if (ch.depart == null) return { boucle: 0, ecoule: 0, restant: P, periode: P };
+  const t = Math.max(0, (ch.fin ?? now) - ch.depart);
+  const boucle = ch.etat === "en-cours" ? Math.floor(t / P) + 1 : Math.max(1, c.bouclesCloses || Math.ceil(t / P));
+  const ecoule = t - (boucle - 1) * P;
+  return { boucle, ecoule, restant: Math.max(0, P - ecoule), periode: P };
+}
+
+/** Coureurs d'une course backyard, rangés par état pour la boucle en cours. */
+export function situationBackyard(c, now = maintenant()) {
+  const { boucle } = etatBackyard(c, now);
+  const partants = inscritsDe(c.id).filter((i) => i.depart != null).sort((a, b) => compareDossard(a.dossard, b.dossard));
+  const actifs = partants.filter((i) => !i.statut);
+  const rentres = actifs.filter((i) => i.passages?.[boucle - 1] != null);
+  const surBoucle = actifs.filter((i) => i.passages?.[boucle - 1] == null);
+  const elimines = partants.filter((i) => i.statut).sort((a, b) => (b.elimine?.boucle || 0) - (a.elimine?.boucle || 0) || (b.elimineA || 0) - (a.elimineA || 0));
+  return { boucle, partants, actifs, rentres, surBoucle, elimines };
+}
+
+function passageBackyard(c, dossard, heure) {
+  const i = inscritsDe(c.id).find((x) => memeDossard(x.dossard, dossard));
+  if (!i) return { ok: false, message: `Dossard ${dossard} inconnu dans « ${c.nom} ».` };
+  if (i.depart == null) return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) n'a pas pris le départ.` };
+  if (i.statut) return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) est éliminé (${i.elimine?.motif || "hors course"}).` };
+  const { boucle, ecoule } = etatBackyard(c, heure);
+  i.passages = i.passages || [];
+  if (i.passages[boucle - 1] != null) return { ok: false, message: `Dossard ${dossard} (${nomComplet(i)}) est déjà rentré de la boucle ${boucle}.` };
+  i.passages[boucle - 1] = heure;
+  const fin = majBackyard(c, heure);
+  return { ok: true, message: "", inscrit: i, course: c, boucle, tempsBoucle: ecoule, termine: !!fin?.termine, fin };
+}
+
+/** Retire le passage de la boucle en cours (saisi par erreur). */
+export function annulerPassage(c, i) {
+  const { boucle } = etatBackyard(c);
+  if (i.passages?.[boucle - 1] == null) return false;
+  i.passages[boucle - 1] = null;
+  i.corrige = true;
+  return true;
+}
+
+/**
+ * Abandon pendant la boucle en cours ; coureur déjà rentré de cette boucle : il ne repart pas pour la suivante
+ * (il garde la boucle finie, éliminé à la boucle d'après).
+ */
+export function abandonBackyard(c, i) {
+  if (i.statut) return null;
+  const { boucle } = etatBackyard(c);
+  const rentre = i.passages?.[boucle - 1] != null;
+  i.statut = "DNF";
+  i.elimine = rentre ? { boucle: boucle + 1, motif: "ne repart pas" } : { boucle, motif: "abandon" };
+  i.elimineA = maintenant();
+  i.corrige = true;
+  return majBackyard(c);
+}
+
+/**
+ * Annule une élimination : abandon de la boucle en cours saisi par erreur, ou coureur éliminé hors délai
+ * à la dernière sonnerie alors qu'il était rentré à temps (passage oublié : il est noté rentré juste avant la sonnerie).
+ */
+export function rattrapableBackyard(c, i) {
+  const { boucle } = etatBackyard(c);
+  const e = i.elimine;
+  if (etatChrono(c).etat !== "en-cours" || !i.statut || !e) return false;
+  return (e.motif === "abandon" && e.boucle === boucle) || (e.motif === "hors délai" && e.boucle === boucle - 1)
+    || (e.motif === "ne repart pas" && (e.boucle === boucle || e.boucle === boucle + 1));
+}
+
+export function remettreBackyard(c, i) {
+  const { boucle } = etatBackyard(c);
+  const e = i.elimine;
+  if (!rattrapableBackyard(c, i)) return false;
+  if (e.motif === "hors délai") {
+    i.passages = i.passages || [];
+    i.passages[boucle - 2] = c.chrono.depart + (boucle - 1) * periodeBackyard(c) - 1000;
+  }
+  i.statut = null;
+  i.elimine = null;
+  i.elimineA = null;
+  i.corrige = true;
+  return true;
+}
+
+/**
+ * Clôt les boucles terminées (éliminations « hors délai ») et arrête la course quand il y a un gagnant,
+ * plus personne, ou la limite de boucles atteinte. À appeler chaque seconde pendant la course et après chaque saisie.
+ * Un coureur resté seul ne gagne qu'avec une boucle de plus que tous les autres.
+ * @returns {null | {termine: boolean, gagnant?: object|null, gagnants?: object[], limite?: boolean, boucle?: number, elimines?: object[]}}
+ */
+export function majBackyard(c, now = maintenant()) {
+  if (!estBackyard(c) || etatChrono(c).etat !== "en-cours") return null;
+  const P = periodeBackyard(c);
+  const d = c.chrono.depart;
+  const max = maxBoucles(c);
+  const partants = () => inscritsDe(c.id).filter((x) => x.depart != null);
+  const finir = (heure, gagnants, boucle, limite = false) => {
+    c.chrono = { ...c.chrono, etat: "arretee", fin: heure };
+    c.gagnants = gagnants.map((x) => x.id);
+    c.gagnantId = gagnants.length === 1 ? gagnants[0].id : null;
+    c.bouclesCloses = boucle;
+    return { termine: true, gagnant: gagnants.length === 1 ? gagnants[0] : null, gagnants, limite, boucle, elimines };
+  };
+  const devant = (x) => partants().every((y) => y === x || nbBoucles(y) < nbBoucles(x));
+  const elimines = [];
+  let closes = c.bouclesCloses || 0;
+  while (d + (closes + 1) * P <= now) {
+    const L = closes + 1;
+    const heure = d + L * P;
+    partants().filter((x) => !x.statut && x.passages?.[L - 1] == null).forEach((x) => {
+      x.statut = "DNF";
+      x.elimine = { boucle: L, motif: "hors délai" };
+      x.elimineA = heure;
+      elimines.push(x);
+    });
+    closes = L;
+    c.bouclesCloses = L;
+    const restants = partants().filter((x) => !x.statut);
+    if (!restants.length) return finir(heure, [], L);
+    if (restants.length === 1 && devant(restants[0])) return finir(heure, restants, L);
+    if (max && L >= max) return finir(heure, restants, L, true);
+  }
+  // Pendant la boucle : plus personne, un seul coureur encore là, rentré et devant tous les autres,
+  // ou dernière boucle de la limite finie par tous → fin sans attendre la sonnerie
+  const L = closes + 1;
+  const restants = partants().filter((x) => !x.statut);
+  if (!restants.length) return finir(now, [], L - 1);
+  const tousRentres = restants.every((x) => x.passages?.[L - 1] != null);
+  if (restants.length === 1 && partants().length > 1 && tousRentres && devant(restants[0])) return finir(now, restants, L);
+  if (max && L >= max && tousRentres) return finir(now, restants, L, true);
+  return elimines.length ? { termine: false, elimines } : null;
+}
+
+/** Lignes de résultats d'un backyard : au nombre de boucles finies, les ex æquo à la même place. */
+function resultatsBackyard(c, inscrits) {
+  const km = Number(c?.distance) > 0 ? Number(c.distance) : null;
+  const partants = inscrits.filter((i) => i.depart != null);
+  const absents = inscrits.filter((i) => i.depart == null);
+  const enCourse = etatChrono(c).etat === "en-cours";
+  const gagnants = new Set(gagnantsDe(c));
+  const tri = (a, b) => nbBoucles(b) - nbBoucles(a) || gagnants.has(b.id) - gagnants.has(a.id)
+    || (b.elimineA || Infinity) - (a.elimineA || Infinity) || compareDossard(a.dossard, b.dossard);
+  const ordre = [...partants].sort(tri);
+  // Assist : avec un gagnant seul, le ou les derniers à tenir face à lui (le plus de boucles après le sien)
+  const seul = !enCourse && gagnants.size === 1;
+  const autres = ordre.filter((i) => !gagnants.has(i.id) && i.statut !== "DSQ");
+  const nAssist = seul && autres.length ? nbBoucles(autres[0]) : null;
+  let rang = 0, precedent = null;
+  const lignes = ordre.map((i, k) => {
+    const n = nbBoucles(i);
+    const gagnant = gagnants.has(i.id);
+    const cle = gagnant ? "g" : n;
+    if (cle !== precedent) { rang = k + 1; precedent = cle; }
+    const l = ligne(i, rang);
+    const dsq = i.statut === "DSQ";
+    const assist = !dsq && !gagnant && nAssist != null && n === nAssist;
+    const distance = km ? ` · ${(n * km).toFixed(1).replace(".", ",")} km` : "";
+    const mention = gagnant && gagnants.size > 1 ? " · ex æquo" : assist ? " · Assist" : "";
+    const tours = Array.from({ length: (i.passages || []).length }, (_, k2) => tempsBoucleBy(c, i, k2 + 1));
+    return Object.assign(l, {
+      position: dsq ? "DSQ" : String(rang), dnf: dsq, dsq, ms: null, tri: dsq ? null : -n, enCours: false,
+      boucles: n, km: km ? n * km : null, tours, temps: dsq ? "DSQ" : `${n} boucle${n > 1 ? "s" : ""}${distance}${mention}`,
+      elimine: i.elimine || null, actif: !i.statut, gagnant, assist,
+      motif: dsq ? i.motif || "" : gagnant ? (gagnants.size > 1 ? "gagnant ex æquo" : "gagnant") : i.elimine ? `${assist ? "Assist — " : ""}${i.elimine.motif}, boucle ${i.elimine.boucle}` : enCourse ? "en course" : "",
+    });
+  });
+  return { lignes, absents: absents.map((i) => ligne(i)) };
 }
 
 // ── Résultats ─────────────────────────────────────────────────
@@ -342,8 +540,9 @@ function grouper(lignes, cle, champRang) {
     groupes.get(nom).push(l);
   });
   return [...groupes.entries()].map(([nom, membres]) => {
-    const finishers = membres.filter((l) => !l.dnf && l.ms != null).sort((a, b) => a.ms - b.ms);
-    finishers.forEach((l, k) => { l[champRang] = k + 1; });
+    const cle = (l) => l.tri ?? l.ms; // backyard : « tri » (moins de boucles = plus loin), sinon le temps
+    const finishers = membres.filter((l) => !l.dnf && cle(l) != null).sort((a, b) => cle(a) - cle(b));
+    finishers.forEach((l, k) => { l[champRang] = l.tri != null && k && finishers[k - 1].tri === l.tri ? finishers[k - 1][champRang] : k + 1; });
     const parDossard = (a, b) => compareDossard(a.dossard, b.dossard);
     const dnfs = membres.filter((l) => l.dnf).sort(parDossard);
     const enCours = membres.filter((l) => l.enCours).sort(parDossard);
@@ -360,6 +559,26 @@ function grouper(lignes, cle, champRang) {
  * « t » est le modèle PDF : il fixe la règle du classement par école (voir regleEcoles).
  */
 export function resultatsDe(c, inscrits, t = null) {
+  if (estBackyard(c)) {
+    const { lignes, absents } = resultatsBackyard(c, inscrits);
+    const classes = lignes.filter((l) => !l.dsq);
+    const categories = grouper(lignes, (l) => l.categorie.trim() || "(sans catégorie)", "rangCategorie")
+      .sort((a, b) => (a.nom === "(sans catégorie)") - (b.nom === "(sans catégorie)") || a.nom.localeCompare(b.nom, "fr", { numeric: true }));
+    const sexes = grouper(lignes.filter((l) => SEXES[l.sexe]), (l) => l.sexe, "rangSexe")
+      .sort((a, b) => a.nom.localeCompare(b.nom)).map((g) => ({ ...g, nom: SEXES[g.nom] }));
+    grouper(lignes, (l) => `${l.categorie.trim()}|${l.sexe}`, "rangCatSexe");
+    const gs = lignes.filter((l) => l.gagnant);
+    const fini = etatChrono(c).etat === "arretee";
+    const max = maxBoucles(c);
+    const morceaux = [`${lignes.length} partant(s)`, ...(max ? [`limite ${max} boucles`] : []),
+      gs.length > 1 ? `${gs.length} gagnants ex æquo, ${gs[0].boucles} boucles` : gs.length ? `gagnant : ${gs[0].prenom} ${gs[0].nom.toUpperCase()}, ${gs[0].temps}` : fini ? "pas de gagnant" : `boucle ${etatBackyard(c).boucle} en cours`];
+    if (c?.date) morceaux.push(fmtDate(c.date));
+    return {
+      individuel: lignes, ecoles: [], clubs: [], equipes: { choix: "aucune", ecole: false, club: false },
+      categories, sexes, regle: regleEcoles(t), info: `Backyard — ${morceaux.join("  |  ")}`, nbClasses: classes.length, backyard: true,
+      nbTours: Math.max(0, ...lignes.map((l) => l.tours.length)), dureeBoucle: periodeBackyard(c),
+    };
+  }
   const { partants, arrives: passes, dnf, dsq, enCours } = situationDe(inscrits);
   const arrives = [...passes].sort((a, b) => duree(a) - duree(b));
 

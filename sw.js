@@ -3,12 +3,12 @@
 
 // La version de test (site « Loopace-Chrono-Test ») partage l'adresse de la stable : chacune garde son propre cache
 const TEST = /chrono-test/i.test(self.location.pathname);
-const VERSION = "loopace-chrono-v28"; // augmenté par outils/nouvelle-version.py
+const VERSION = "loopace-chrono-v30"; // augmenté par outils/nouvelle-version.py
 const CACHE = TEST ? VERSION.replace("chrono", "chrono-test") : VERSION;
 const MIEN = (k) => (TEST ? k.startsWith("loopace-chrono-test-v") : k.startsWith("loopace-chrono-v"));
 const FICHIERS = [
-  "./", "index.html", "ecran.html", "styles.css?v=28", "ecran.css?v=28",
-  "js/app.js?v=28", "js/ecran.js?v=28", "js/store.js?v=28", "js/calc.js?v=28", "js/excel.js?v=28", "js/pdf.js?v=28", "js/sauvegarde.js?v=28", "js/diplomes.js?v=28",
+  "./", "index.html", "ecran.html", "styles.css?v=30", "ecran.css?v=30",
+  "js/app.js?v=30", "js/ecran.js?v=30", "js/store.js?v=30", "js/calc.js?v=30", "js/excel.js?v=30", "js/pdf.js?v=30", "js/sauvegarde.js?v=30", "js/diplomes.js?v=30",
   "manifest.webmanifest", "manifest-test.webmanifest", "baremes.json", "CHANGELOG.md",
   "assets/loopace-logo-clair.png", "assets/loopace-logo-sombre.png",
   "assets/chrono-app-32.png", "assets/chrono-app-180.png", "assets/chrono-app-192.png", "assets/chrono-app-512.png", "assets/chrono-app-maskable-512.png",

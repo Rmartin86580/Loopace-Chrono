@@ -395,6 +395,33 @@ select.input { cursor: pointer; }
 .runner-list li b { grid-row: span 2; font-variant-numeric: tabular-nums; }
 .runner-list li em { font-style: normal; font-size: .76rem; color: var(--faint); }
 
+/* ===== Backyard ===== */
+.by-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+.by-stat { padding: 1rem 1.2rem; }
+.by-stat small { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); }
+.by-stat b { display: block; margin-top: .2rem; font: 800 clamp(1.7rem, 3.2vw, 2.9rem)/1.1 var(--font-body); font-variant-numeric: tabular-nums; }
+.by-stat b.is-running { color: var(--accent); }
+.by-stat b.is-alerte { color: var(--warn); }
+.by-stat--out b { color: var(--danger); }
+.by-saisie { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.by-saisie .input { flex: 1 1 200px; min-width: 0; }
+.by-saisie .seg { margin: 0; }
+.btn.is-abandon { border-color: var(--danger); background: rgba(var(--danger-rgb), .14); color: var(--danger); }
+.by-fin { margin-bottom: 1rem; padding: .9rem 1.1rem; border: 1px solid var(--accent); border-radius: 12px; background: rgba(var(--accent-rgb), .08); font-weight: 600; }
+.by-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 8px; margin: .4rem 0 1rem; }
+.by-tuile { padding: .75em 0; border: 1px dashed var(--line-strong); border-radius: 10px; background: var(--surface-2); color: var(--text); font: 700 1.1rem/1 var(--font-body); font-variant-numeric: tabular-nums; cursor: pointer; }
+.by-tuile:hover { border-color: var(--accent); }
+.by-tuile--in { border: 1px solid rgba(var(--accent-rgb), .55); background: rgba(var(--accent-rgb), .18); color: var(--accent); }
+.by-tuile--out { border: 1px solid transparent; background: rgba(var(--danger-rgb), .08); color: var(--danger); text-decoration: line-through; }
+.by-tuile--attente { border-style: solid; cursor: default; }
+.by-grille.is-abandon .by-tuile--run, .by-grille.is-abandon .by-tuile--in { outline: 2px solid rgba(var(--danger-rgb), .55); outline-offset: 1px; }
+.by-aide { margin-top: .4rem; }
+.by-listes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 20px; }
+.by-listes .runner-list { max-height: 40vh; }
+.by-ok { color: var(--accent); }
+.by-ko { color: var(--danger); }
+.by-attente { color: var(--warn); }
+
 /* ===== Résultats ===== */
 .seg { display: inline-flex; gap: .25rem; padding: .25rem; margin: 1rem 0; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--line); }
 .seg__btn { padding: .5em 1.1em; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 .86rem/1 var(--font-body); cursor: pointer; }
@@ -640,6 +667,7 @@ select.input { cursor: pointer; }
 @media (max-width: 1320px) {
   .chrono-grid { grid-template-columns: minmax(320px, 1fr) minmax(0, 1.4fr); grid-template-areas: "chrono classement" "encours classement"; }
   .chrono-encours .runner-list { max-height: 30vh; }
+  .by-listes { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 900px) {
   .nav__inner { gap: .8rem; }
@@ -656,6 +684,8 @@ select.input { cursor: pointer; }
   .card { padding: 1rem; }
   .card__head { flex-wrap: wrap; }
   .chrono-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "chrono" "classement" "encours"; }
+  .by-stats { grid-template-columns: 1fr 1fr; }
+  .by-listes { grid-template-columns: minmax(0, 1fr); }
   .field--inline { flex-direction: column; align-items: stretch; width: 100%; }
   .field--inline .input { min-width: 0; }
   .form-grid { grid-template-columns: minmax(0, 1fr); }

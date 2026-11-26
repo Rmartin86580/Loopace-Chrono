@@ -1,6 +1,6 @@
 // Import / export Excel avec SheetJS (chargé par index.html : window.XLSX).
 
-import { codeCategorie } from "./pdf.js?v=28";
+import { codeCategorie } from "./pdf.js?v=30";
 
 function lib() {
   if (!window.XLSX) throw new Error("La bibliothèque Excel n'est pas chargée (connexion nécessaire au premier lancement).");
@@ -108,8 +108,24 @@ const lignesClassement = (res) => [
   ...res.individuel.map((l) => [l.position, l.dossard, l.nom, l.prenom, l.ecole, l.club, l.licence, l.categorie, l.sexe, l.naissance, l.enCours ? "En course" : l.temps]),
 ];
 
+/** Backyard : le temps de chaque boucle de chaque coureur (m:ss), avec la fin de sa course. */
+const fmtTour = (ms) => (ms == null ? "" : `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`);
+function feuilleBoucles(res) {
+  const n = res.nbTours || 0;
+  return {
+    nom: "Boucles",
+    largeurs: [6, 10, 20, 18, 9, 9, 34, ...Array(n).fill(8)],
+    lignes: [
+      ["#", "Dossard", "Nom", "Prénom", "Boucles", "Km", "Fin de course", ...Array.from({ length: n }, (_, k) => `B${k + 1}`)],
+      ...res.individuel.map((l) => [l.position, l.dossard, l.nom, l.prenom, l.boucles, l.km != null ? Math.round(l.km * 100) / 100 : "", l.motif,
+        ...Array.from({ length: n }, (_, k) => fmtTour(l.tours?.[k]))]),
+    ],
+  };
+}
+
 export function exporterResultats(nomFichier, res) {
   const feuilles = [{ nom: "Classement", largeurs: LARGEURS_CLASSEMENT, lignes: lignesClassement(res) }];
+  if (res.backyard) feuilles.push(feuilleBoucles(res));
   if (res.ecoles.length) feuilles.push({
     nom: "Écoles",
     largeurs: [6, 30, 10, 8, 14],

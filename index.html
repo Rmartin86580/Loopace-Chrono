@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=28">
+  <link rel="stylesheet" href="styles.css?v=30">
   <!-- Même choix clair / sombre que les autres sites Loopace -->
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
     // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
@@ -29,7 +29,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script type="module" src="js/app.js?v=28"></script>
+  <script type="module" src="js/app.js?v=30"></script>
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -221,6 +221,39 @@
           <ul class="runner-list" id="listeEnCours"></ul>
         </div>
       </div>
+
+      <!-- Backyard : une boucle par période, le dernier à boucler gagne -->
+      <div class="by" id="chronoBackyard" hidden>
+        <div class="by-stats">
+          <div class="card by-stat"><small>Boucle</small><b id="byBoucle">—</b></div>
+          <div class="card by-stat"><small id="byReboursTitre">Prochain départ dans</small><b id="byRebours">—</b></div>
+          <div class="card by-stat"><small>Rentrés / en course</small><b id="byRentres">—</b></div>
+          <div class="card by-stat by-stat--out"><small>Éliminés</small><b id="byElimines">—</b></div>
+        </div>
+        <div class="card">
+          <div class="by-fin" id="byFin" hidden></div>
+          <form class="by-saisie" id="formBackyard" autocomplete="off">
+            <input class="input input--xl" id="saisieBackyard" inputmode="numeric" placeholder="Dossard qui rentre" aria-label="Dossard qui rentre" autocomplete="off">
+            <button class="btn btn--xl" type="submit"><svg class="ico"><use href="#i-check"/></svg>Valider</button>
+            <button class="btn btn--ghost" type="button" id="btnModeAbandon">Abandon / ne repart pas</button>
+            <div class="seg by-vue" role="tablist">
+              <button type="button" class="seg__btn" data-by-vue="grille" role="tab">Grille</button>
+              <button type="button" class="seg__btn" data-by-vue="tableau" role="tab">Tableau</button>
+            </div>
+          </form>
+          <p class="arrival__msg" id="byMessage" role="status" aria-live="polite"></p>
+          <div class="by-grille" id="byGrille"></div>
+          <div class="table-wrap table-wrap--tall" id="byTableau" hidden>
+            <table class="table table--nowrap"><thead id="byTableauTete"></thead><tbody id="byTableauCorps"></tbody></table>
+          </div>
+          <p class="meta by-aide">Touchez un dossard quand le coureur rentre (touchez-le à nouveau pour annuler). « Abandon / ne repart pas », puis le dossard du coureur qui arrête : en course, c'est un abandon ; déjà rentré, il ne repart pas et garde sa boucle. Un coureur éliminé par erreur se remet en course en touchant son dossard.</p>
+        </div>
+        <div class="by-listes">
+          <div class="card"><div class="card__head"><h2>Attendus</h2><span class="meta" id="nbByAttendus"></span></div><ul class="runner-list" id="byAttendus"></ul></div>
+          <div class="card"><div class="card__head"><h2>Rentrés</h2><span class="meta" id="nbByRentres"></span></div><ul class="runner-list" id="byRentresListe"></ul></div>
+          <div class="card"><div class="card__head"><h2>Éliminés</h2><span class="meta" id="nbByElimines"></span></div><ul class="runner-list" id="byEliminesListe"></ul></div>
+        </div>
+      </div>
     </section>
 
     <!-- ===== RÉSULTATS ===== -->
@@ -370,6 +403,15 @@
             </div>
             <div class="reglage">
               <div class="reglage__txt">
+                <b>Backyard de démonstration</b>
+                <p class="meta">Un backyard fictif de 12 coureurs avec une boucle toutes les 5 minutes, pour essayer le format sans attendre une heure.</p>
+              </div>
+              <div class="reglage__actions">
+                <button class="btn btn--ghost btn--sm" id="btnDemoBackyard"><svg class="ico"><use href="#i-plus"/></svg>Créer</button>
+              </div>
+            </div>
+            <div class="reglage">
+              <div class="reglage__txt">
                 <b>Événement de démonstration</b>
                 <p class="meta">Un cross fictif de 3 courses (Benjamins, Minimes, Cadets) avec 36 participants et leurs dossards, pour essayer les événements et l'écran public à plusieurs courses.</p>
               </div>
@@ -459,7 +501,16 @@
           <label class="field"><span>Heure de départ</span><input class="input" type="time" name="heure"></label>
           <label class="field field--full"><span>Lieu</span><input class="input" name="lieu" maxlength="200"></label>
           <label class="field"><span>Type</span><input class="input" name="type" list="typesCourse" placeholder="Route, Cross, Trail…"></label>
-          <label class="field"><span>Distance (km)</span><input class="input" name="distance" inputmode="decimal" placeholder="ex : 5 ou 2,4"></label>
+          <label class="field"><span id="labelDistance">Distance (km)</span><input class="input" name="distance" inputmode="decimal" placeholder="ex : 5 ou 2,4"></label>
+          <label class="field"><span>Format</span><select class="input" name="mode">
+            <option value="">Course classique</option>
+            <option value="backyard">Backyard</option>
+          </select></label>
+          <label class="field" data-backyard hidden><span>Une boucle toutes les (min)</span><input class="input" type="number" min="1" max="1440" name="byMinutes" placeholder="60"></label>
+          <label class="field" data-backyard hidden><span>Arrêt après (boucles)</span><input class="input" type="number" min="0" max="999" name="byMax" placeholder="sans limite"><small class="meta" id="aideByMax"></small></label>
+          <label class="check field--full" data-backyard hidden><input type="checkbox" name="bySignaux"> Bips 3, 2 et 1 minute avant chaque départ, puis au départ</label>
+          <p class="meta field--full" data-backyard hidden>Backyard : tout le monde repart au début de chaque période. Qui n'est pas rentré à temps est éliminé. Le gagnant est le seul à finir une boucle de plus que tous les autres. Avec une limite, tous ceux qui finissent la dernière boucle gagnent ex æquo.</p>
+          <p class="meta field--full" id="aideModeBloque" hidden>Le format ne se change plus une fois la course partie (remise à zéro d'abord).</p>
         </div>
       </fieldset>
 

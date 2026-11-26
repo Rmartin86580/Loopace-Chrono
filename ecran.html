@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=28">
-  <link rel="stylesheet" href="ecran.css?v=28">
+  <link rel="stylesheet" href="styles.css?v=30">
+  <link rel="stylesheet" href="ecran.css?v=30">
   <script>try { if (localStorage.getItem("loopace-theme") === "light") document.documentElement.dataset.theme = "light"; } catch (e) {}
     // Version de test (site « Loopace-Chrono-Test ») : bandeau orange, titre et appli installée « TEST »
     if (/chrono-test/i.test(location.pathname)) {
@@ -20,7 +20,7 @@
       document.title = "[TEST] " + document.title;
       document.querySelector('link[rel="manifest"]').setAttribute("href", "manifest-test.webmanifest");
     }</script>
-  <script type="module" src="js/ecran.js?v=28"></script>
+  <script type="module" src="js/ecran.js?v=30"></script>
 </head>
 <body class="screen">
   <header class="screen__head">
@@ -48,6 +48,22 @@
   </section>
 
   <section class="screen__multi" id="ecranMulti" hidden></section>
+
+  <!-- Backyard : compte à rebours géant et mur des dossards -->
+  <section class="screen__by" id="ecranBackyard" hidden>
+    <div class="by-ecran__chrono">
+      <p class="by-ecran__boucle" id="ebBoucle">Boucle —</p>
+      <p class="by-ecran__titre" id="ebTitre">Prochain départ dans</p>
+      <div class="screen__time" id="ebRebours">00:00</div>
+      <p class="by-ecran__actifs"><b id="ebActifs">0</b> <span id="ebActifsTxt">encore en course</span></p>
+      <p class="by-ecran__km" id="ebKm"></p>
+    </div>
+    <div class="by-ecran__mur">
+      <div class="by-ecran__tuiles" id="ebMur"></div>
+      <p class="by-ecran__legende"><span class="eb eb--in"></span> rentré <span class="eb eb--run"></span> sur la boucle <span class="eb eb--out"></span> éliminé</p>
+      <p class="by-ecran__derniers" id="ebDerniers"></p>
+    </div>
+  </section>
 
   <div class="screen__body">
     <div class="screen__table" id="ecranScroll">

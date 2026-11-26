@@ -261,7 +261,7 @@ function dessinerCourse(doc, { course, theme, res }, nouvellePage = false) {
     tete.forEach((c, k) => { styles[k] = { cellWidth: c.largeur, ...gras(k === 0) }; });
     cols.forEach((c, k) => { if (c.largeur) styles[tete.length + k] = { cellWidth: c.largeur, ...gras(c.cle === "temps") }; });
     return {
-      head: [[...tete.map((c) => c.titre), ...cols.map((c) => c.titre)]],
+      head: [[...tete.map((c) => c.titre), ...cols.map((c) => (c.cle === "temps" && res.backyard ? "Boucles" : c.titre))]],
       body: lignes.map(({ tete: v, l }) => [...v, ...cols.map((c) => valeur(l, c.cle))]),
       columnStyles: styles,
     };
@@ -366,6 +366,38 @@ function dessinerCourse(doc, { course, theme, res }, nouvellePage = false) {
     },
   };
   sectionsDe(t).forEach((cle) => SECTIONS[cle]());
+
+  // ── Backyard : temps de chaque boucle, par tranches de colonnes qui tiennent dans la largeur ──
+  if (res.backyard && res.nbTours) {
+    nouvelleSection("Détail des boucles", true);
+    const tete = [{ titre: "#", largeur: 24 }, { titre: "Dos.", largeur: 32 }, { titre: "Nom Prénom", largeur: 112 }, { titre: "Boucles", largeur: 40 }];
+    const fixe = tete.reduce((s, c) => s + c.largeur, 0);
+    const parTable = Math.max(4, Math.floor((L - 2 * MARGE - fixe) / 34));
+    const fmtTour = (ms) => (ms == null ? "" : `${Math.floor(ms / 60000)}:${deuxChiffres(Math.floor(ms / 1000) % 60)}`);
+    for (let a = 0; a < res.nbTours; a += parTable) {
+      const nums = Array.from({ length: Math.min(parTable, res.nbTours - a) }, (_, k) => a + k + 1);
+      if (a) { sautSiBesoin(80); y += 18; }
+      if (res.nbTours > parTable) {
+        doc.setFont("helvetica", "bold").setFontSize(9).setTextColor("#616161");
+        doc.text(`Boucles ${nums[0]} à ${nums[nums.length - 1]}`, MARGE, y + 10);
+        y += 14;
+      }
+      const styles = {};
+      tete.forEach((c, k) => { styles[k] = { cellWidth: c.largeur, ...(k === 0 || k === 3 ? { fontStyle: "bold" } : {}) }; });
+      doc.autoTable({
+        ...optionsTable, ...podium,
+        startY: y,
+        styles: { ...optionsTable.styles, fontSize: 7, cellPadding: 2.5 },
+        head: [[...tete.map((c) => c.titre), ...nums.map((k) => `B${k}`)]],
+        body: res.individuel.map((l) => [l.position, l.dossard, `${l.nom.toUpperCase()} ${l.prenom}`.trim(), String(l.boucles ?? ""), ...nums.map((k) => fmtTour(l.tours?.[k - 1]))]),
+        columnStyles: styles,
+      });
+      y = doc.lastAutoTable.finalY;
+    }
+    doc.setFont("helvetica", "normal").setFontSize(8).setTextColor("#616161");
+    sautSiBesoin(20);
+    doc.text(`Temps de chaque boucle (min:s), sur ${Math.round(res.dureeBoucle / 60000)} min par boucle. Case vide : boucle non finie.`, MARGE, y + 14);
+  }
 
   // ── En-tête repris sur les pages suivantes de la course ────
   const fin = doc.getNumberOfPages();

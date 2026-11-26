@@ -27,6 +27,29 @@
 .screen__runners li { padding: .3em 0; border-top: 1px solid var(--line); }
 .screen__runners b { display: inline-block; min-width: 3em; font-variant-numeric: tabular-nums; }
 
+/* Backyard */
+.screen__by { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.4fr); gap: 3vw; align-items: center; }
+.by-ecran__chrono { text-align: center; }
+.by-ecran__boucle { font: 700 clamp(1.4rem, 2.6vw, 2.6rem)/1.2 var(--font-display); }
+.by-ecran__titre { color: var(--muted); font-size: clamp(1rem, 1.5vw, 1.5rem); margin-top: 1vh; }
+.screen__by .screen__time { font-size: clamp(4rem, 11vw, 11rem); color: var(--accent); }
+.screen__by .screen__time.is-alerte { color: var(--warn); }
+.by-ecran__actifs { margin-top: 1.5vh; font-size: clamp(1.1rem, 1.9vw, 1.9rem); color: var(--muted); }
+.by-ecran__actifs b { color: var(--text); font-size: 1.6em; font-variant-numeric: tabular-nums; }
+.by-ecran__km { margin-top: .6vh; color: var(--faint); font-size: clamp(.9rem, 1.3vw, 1.3rem); }
+.by-ecran__mur { min-height: 0; max-height: 100%; overflow: hidden; display: flex; flex-direction: column; gap: 1.2vh; }
+.by-ecran__tuiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(56px, 6vw, 110px), 1fr)); gap: .7vw; }
+.by-ecran__tuiles span { padding: .5em 0; border-radius: 12px; text-align: center; font: 800 clamp(1rem, 2vw, 2rem)/1 var(--font-body); font-variant-numeric: tabular-nums; }
+.eb--in { background: rgba(var(--accent-rgb), .2); color: var(--accent); }
+.eb--run { background: var(--surface-2); color: var(--text); outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+.eb--out { background: rgba(var(--danger-rgb), .08); color: var(--danger); text-decoration: line-through; opacity: .75; }
+.by-ecran__legende { display: flex; align-items: center; gap: .5em; color: var(--muted); font-size: clamp(.8rem, 1vw, 1rem); }
+.by-ecran__legende .eb { display: inline-block; width: 1em; height: 1em; border-radius: 4px; margin-left: 1em; }
+.by-ecran__legende .eb:first-child { margin-left: 0; }
+.by-ecran__derniers { color: var(--muted); font-size: clamp(.85rem, 1.2vw, 1.2rem); }
+.multi__mur { display: flex; flex-wrap: wrap; gap: .4rem; }
+.multi__mur span { min-width: 3em; padding: .3em .4em; border-radius: 8px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+
 /* Plusieurs courses en même temps : une colonne par course (3 au plus, puis les suivantes en alternance) */
 .screen__multi { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--nb, 2), minmax(0, 1fr)); gap: 1.5vw; }
 .multi__col { min-height: 0; display: flex; flex-direction: column; gap: 1vh; padding: 1.5vh 1.2vw; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
