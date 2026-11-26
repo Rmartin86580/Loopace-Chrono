@@ -1,13 +1,13 @@
 // Loopace Chrono — interface : onglets Courses, Chronomètre, Résultats, Archives, Administration.
 
-import * as store from "./store.js?v=25";
-import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=25";
-import * as calc from "./calc.js?v=25";
-import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=25";
-import * as excel from "./excel.js?v=25";
-import * as sauvegarde from "./sauvegarde.js?v=25";
-import { genererDiplomes } from "./diplomes.js?v=25";
-import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=25";
+import * as store from "./store.js?v=26";
+import { state, uid, course, inscritsDe, theme, coursesTriees, THEME_DEFAUT_ID, evenement, coursesDe, nomCourse, REGLAGES_COMMUNS } from "./store.js?v=26";
+import * as calc from "./calc.js?v=26";
+import { fmtDuree, fmtHeure, fmtDate, nomComplet, compareDossard } from "./calc.js?v=26";
+import * as excel from "./excel.js?v=26";
+import * as sauvegarde from "./sauvegarde.js?v=26";
+import { genererDiplomes } from "./diplomes.js?v=26";
+import { genererPdf, genererPdfEvenement, nomFichier, COLONNES_PDF, COLONNES_DEFAUT, SECTIONS_PDF, sectionsDe } from "./pdf.js?v=26";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -385,7 +385,9 @@ async function editerCourse(c, { evenementId = null } = {}) {
   const recalculees = calc.appliquerCategories(cible.id);
   await store.sauver();
   rendre();
-  toast((c ? "Course modifiée." : "Course créée.") + (recalculees ? ` ${recalculees} catégorie(s) recalculée(s).` : ""));
+  const chevauche = ev ? calc.chevauchements(coursesDe(ev.id)).plages.find((p) => p.includes(cible)) : null;
+  if (chevauche) toast(`Attention : la plage de dossards chevauche celle de « ${chevauche.find((x) => x !== cible).nom} ».`, "warn");
+  else toast((c ? "Course modifiée." : "Course créée.") + (recalculees ? ` ${recalculees} catégorie(s) recalculée(s).` : ""));
 }
 
 /** Rappel des années de naissance de chaque catégorie, pour la saison de la date saisie. */
@@ -492,13 +494,90 @@ function rendreEvenement(ev) {
   $("#titreEvenement").textContent = ev.nom;
   $("#metaEvenement").textContent = [fmtDate(ev.date), ev.lieu, ev.type, calc.BAREMES[ev.categories]?.nom, th && `modèle « ${th.nom} »`].filter(Boolean).join(" · ");
   $("#btnPdfEvenement").disabled = !courses.some((c) => calc.resultats(c.id).individuel.length);
+  const { plages, doublons } = calc.chevauchements(courses);
+  const enConflit = new Set(plages.flat());
   $("#tableCoursesEvenement").innerHTML = courses.length ? courses.map((c) => {
     const etat = calc.etatChrono(c).etat;
     const propres = (c.propres || []).length ? ` <span class="corrige" title="Réglages propres à cette course : ${esc(c.propres.join(", "))}">✎</span>` : "";
     return `<tr data-id="${c.id}"><td>${esc(c.heure || "—")}</td><td><b>${esc(c.nom)}</b>${propres}</td><td>${c.distance ? `${String(c.distance).replace(".", ",")} km` : ""}</td>
-      <td class="r">${calc.nbInscrits(c.id)}</td><td>${c.plageDossards ? esc(plageTexte(c.plageDossards)) : ""}</td><td><span class="chip chip--${etat}">${ETATS[etat]}</span></td></tr>`;
+      <td class="r">${calc.nbInscrits(c.id)}</td><td>${c.plageDossards ? `${esc(plageTexte(c.plageDossards))}${enConflit.has(c) ? ` <span class="plage-alerte" title="Chevauche la plage d'une autre course">⚠</span>` : ""}` : ""}</td><td><span class="chip chip--${etat}">${ETATS[etat]}</span></td></tr>`;
   }).join("") : `<tr><td colspan="6" class="muted c">Ajoutez les courses de l'événement avec « + Course ».</td></tr>`;
+  $("#btnPlagesEvenement").disabled = !courses.length;
+  const alertes = [
+    ...plages.map(([a, b]) => `Les plages de « ${esc(a.nom)} » et « ${esc(b.nom)} » se chevauchent.`),
+    ...doublons.slice(0, 8).map((d) => `Dossard ${esc(d.dossard)} donné dans ${d.courses.map((c) => `« ${esc(c.nom)} »`).join(" et ")}.`),
+    ...(doublons.length > 8 ? [`… et ${doublons.length - 8} autre(s) dossard(s) en double.`] : []),
+  ];
+  $("#alertesEvenement").hidden = !alertes.length;
+  $("#alertesEvenement").innerHTML = alertes.length ? `<b>⚠ À vérifier avant le départ</b><ul>${alertes.map((t) => `<li>${t}</li>`).join("")}</ul>` : "";
 }
+
+// ── Répartir les dossards de l'événement ─────────────────────
+/** Ce que la répartition ferait, course par course, sans rien modifier. */
+function propositionPlages(ev, debut, taille, numeroter, remplacer) {
+  let d = debut;
+  return coursesDe(ev.id).map((c) => {
+    if (calc.etatChrono(c).etat !== "attente") return { c, partie: true };
+    const plage = [d, d + taille - 1];
+    d += taille;
+    const inscrits = inscritsDe(c.id);
+    const gardes = remplacer ? [] : inscrits.filter((i) => i.dossard);
+    const aDonner = numeroter ? inscrits.filter((i) => i.bulletin && (remplacer || !i.dossard)).length : 0;
+    const libres = taille - gardes.filter((i) => calc.dansPlage(i.dossard, plage)).length;
+    return { c, plage, nb: inscrits.length, aDonner, hors: gardes.filter((i) => !calc.dansPlage(i.dossard, plage)).length, manque: Math.max(0, aDonner - libres) };
+  });
+}
+
+$("#btnPlagesEvenement").addEventListener("click", async () => {
+  const ev = evenement(evenementSel);
+  if (!ev) return;
+  const f = $("#formPlages");
+  const lire = () => ({ debut: parseInt(f.debut.value, 10), taille: parseInt(f.taille.value, 10), numeroter: f.numeroter.checked, remplacer: f.remplacer.checked });
+  let prop = [];
+  const apercu = () => {
+    const { debut, taille, numeroter, remplacer } = lire();
+    const valide = Number.isInteger(debut) && debut >= 0 && Number.isInteger(taille) && taille > 0;
+    prop = valide ? propositionPlages(ev, debut, taille, numeroter, remplacer) : [];
+    $("#tablePlages").innerHTML = prop.map((p) => p.partie
+      ? `<tr><td><b>${esc(p.c.nom)}</b></td><td class="r">${calc.nbInscrits(p.c.id)}</td><td>${p.c.plageDossards ? esc(plageTexte(p.c.plageDossards)) : "—"}</td><td class="muted">Déjà partie : ne change pas</td></tr>`
+      : `<tr><td><b>${esc(p.c.nom)}</b></td><td class="r">${p.nb}</td><td>${esc(plageTexte(p.plage))}</td><td>${[
+        p.manque ? `<span class="plage-alerte">Plage trop petite : il manque ${p.manque} numéro(s)</span>` : "",
+        p.aDonner ? `${p.aDonner} à donner` : "",
+        p.hors ? `${p.hors} déjà donné(s) hors plage, gardé(s)` : "",
+      ].filter(Boolean).join(" · ") || `<span class="muted">Rien à numéroter</span>`}</td></tr>`).join("");
+    const erreur = !valide ? "Indiquez un premier numéro et un nombre de numéros par course." : prop.some((p) => p.manque) ? "Augmentez le nombre de numéros par course." : "";
+    $("#erreurPlages").textContent = erreur;
+    $("#btnPlagesValider").disabled = !!erreur || !prop.some((p) => !p.partie);
+  };
+  // Proposition de départ : plages déjà réglées reprises, sinon 100 par 100 (ou plus si une course est très grosse)
+  const courses = coursesDe(ev.id);
+  const premiere = courses.find((c) => c.plageDossards)?.plageDossards;
+  const plusGrosse = Math.max(0, ...courses.map((c) => calc.nbInscrits(c.id)));
+  f.debut.value = premiere ? premiere[0] : 100;
+  f.taille.value = premiere?.[1] != null ? premiere[1] - premiere[0] + 1 : Math.max(100, Math.ceil(plusGrosse / 100) * 100);
+  f.numeroter.checked = true;
+  f.remplacer.checked = false;
+  f.oninput = apercu;
+  apercu();
+  if (await ouvrirDialogue($("#dlgPlagesEvenement")) !== "ok") return;
+
+  const { numeroter, remplacer } = lire();
+  const aRefaire = prop.filter((p) => !p.partie);
+  const dejaDonnes = remplacer ? aRefaire.reduce((s, p) => s + inscritsDe(p.c.id).filter((i) => i.dossard).length, 0) : 0;
+  if (dejaDonnes && !await confirmer("Refaire tous les dossards", `${dejaDonnes} dossard(s) déjà donné(s) vont changer de numéro. Si les dossards sont déjà imprimés ou distribués, gardez plutôt les numéros existants.\n\nRefaire tous les dossards ?`, { oui: "Refaire", danger: true })) return;
+  let donnes = 0;
+  aRefaire.forEach(({ c, plage }) => {
+    c.plageDossards = plage;
+    if (remplacer) inscritsDe(c.id).forEach((i) => { i.dossard = null; });
+    if (!numeroter) return;
+    const r = calc.proposerDossards(c.id, plage[0], plage[1]);
+    r.attributions.forEach(({ inscrit, numero }) => { inscrit.dossard = String(numero); });
+    donnes += r.attributions.length;
+  });
+  await store.sauver();
+  rendre();
+  toast(`Plages réglées pour ${aRefaire.length} course(s)` + (donnes ? `, ${donnes} dossard(s) donné(s).` : "."));
+});
 
 $("#tableCoursesEvenement").addEventListener("click", (e) => {
   const tr = e.target.closest("tr[data-id]");
@@ -760,7 +839,11 @@ async function editerParticipant(i) {
     else state.inscrits.push({ id: uid(), courseId: c.id, ...valeurs, depart: null, arrivee: null, statut: null });
     await store.sauver();
     rendre();
-    toast(i ? "Participant modifié." : "Participant ajouté.");
+    const ailleurs = calc.dossardAilleurs(c, dossard, i?.id);
+    const horsPlage = dossard && c.plageDossards && !calc.dansPlage(dossard, c.plageDossards);
+    if (ailleurs) toast(`Attention : le dossard ${dossard} est aussi donné dans « ${ailleurs.nom} ».`, "warn");
+    else if (horsPlage) toast(`Attention : le dossard ${dossard} est hors de la plage de la course (${plageTexte(c.plageDossards)}).`, "warn");
+    else toast(i ? "Participant modifié." : "Participant ajouté.");
     return;
   }
 }

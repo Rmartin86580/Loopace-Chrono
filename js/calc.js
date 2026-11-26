@@ -1,7 +1,7 @@
 // Logique métier : départ, arrivées, arrêt, classements individuel, par école et par club.
 // Un inscrit est « partant » s'il avait son bulletin au moment du départ (il reçoit alors une heure de départ).
 
-import { state, course, inscritsDe, theme } from "./store.js?v=25";
+import { state, course, inscritsDe, theme } from "./store.js?v=26";
 
 // ── Formats ───────────────────────────────────────────────────
 const p2 = (n) => String(n).padStart(2, "0");
@@ -582,6 +582,47 @@ export function proposerDossards(courseId, debut, fin = null) {
     attributions.push({ inscrit: i, numero: n });
   }
   return { attributions, manque: 0 };
+}
+
+// ── Dossards d'un événement ───────────────────────────────────
+/** Le dossard est-il dans la plage [de, a] (a null = sans fin) ? Un dossard non numérique n'y est jamais. */
+export function dansPlage(dossard, [de, a]) {
+  const s = String(dossard ?? "").trim();
+  if (!/^\d+$/.test(s)) return false;
+  const n = Number(s);
+  return n >= de && (a == null || n <= a);
+}
+
+/**
+ * Ce qui se marche dessus entre les courses d'un événement : plages qui se chevauchent,
+ * et dossards donnés dans deux courses à la fois.
+ * @param {object[]} courses  les courses de l'événement
+ * @returns {{plages: [object, object][], doublons: {dossard: string, courses: object[]}[]}}
+ */
+export function chevauchements(courses) {
+  const plages = [];
+  courses.forEach((a, x) => courses.slice(x + 1).forEach((b) => {
+    const pa = a.plageDossards, pb = b.plageDossards;
+    if (pa && pb && pa[0] <= (pb[1] ?? Infinity) && pb[0] <= (pa[1] ?? Infinity)) plages.push([a, b]);
+  }));
+  const parDossard = new Map();
+  courses.forEach((c) => inscritsDe(c.id).forEach((i) => {
+    if (!i.dossard) return;
+    const s = String(i.dossard).trim();
+    const cle = /^\d+$/.test(s) ? String(Number(s)) : s.toLowerCase();
+    if (!parDossard.has(cle)) parDossard.set(cle, { dossard: s, courses: [] });
+    const d = parDossard.get(cle);
+    if (!d.courses.includes(c)) d.courses.push(c);
+  }));
+  const doublons = [...parDossard.values()].filter((d) => d.courses.length > 1).sort((a, b) => compareDossard(a.dossard, b.dossard));
+  return { plages, doublons };
+}
+
+/** Autre course de l'événement où ce dossard est déjà donné (null si aucune). */
+export function dossardAilleurs(c, dossard, saufInscritId = null) {
+  if (!c?.evenementId || !dossard) return null;
+  return state.courses.filter((x) => x.evenementId === c.evenementId && x.id !== c.id)
+    .find((x) => inscritsDe(x.id).some((i) => i.id !== saufInscritId && memeDossard(i.dossard, dossard))) || null;
 }
 
 export function nbInscrits(courseId) { return state.inscrits.filter((i) => i.courseId === courseId).length; }

@@ -27,7 +27,22 @@
 .screen__runners li { padding: .3em 0; border-top: 1px solid var(--line); }
 .screen__runners b { display: inline-block; min-width: 3em; font-variant-numeric: tabular-nums; }
 
+/* Plusieurs courses en même temps : une colonne par course (3 au plus, puis les suivantes en alternance) */
+.screen__multi { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--nb, 2), minmax(0, 1fr)); gap: 1.5vw; }
+.multi__col { min-height: 0; display: flex; flex-direction: column; gap: 1vh; padding: 1.5vh 1.2vw; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.multi__col h2 { font-size: clamp(1.2rem, 2.2vw, 2.2rem); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.multi__time { text-align: center; color: var(--accent); font: 800 clamp(2.5rem, 6vw, 6.5rem)/1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.multi__counts { display: flex; justify-content: center; gap: 1.5vw; color: var(--muted); font-size: clamp(.9rem, 1.3vw, 1.3rem); }
+.multi__counts b { color: var(--text); }
+.multi__col h3 { margin-top: .5vh; font-size: clamp(.75rem, 1vw, 1rem); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.multi__col .table { font-size: clamp(.9rem, 1.4vw, 1.5rem); }
+.multi__col .table td { padding: .35em .6em; }
+.multi__liste { min-height: 0; overflow: hidden; }
+.multi__page { text-align: center; color: var(--faint); font-size: .9rem; grid-column: 1 / -1; }
+.screen__runners small { color: var(--muted); }
+
 @media (max-width: 800px) {
+  .screen__multi { grid-template-columns: minmax(0, 1fr); }
   .screen { height: auto; overflow: auto; }
   .screen__head { flex-wrap: wrap; }
   .screen__body { grid-template-columns: minmax(0, 1fr); }
