@@ -8,6 +8,68 @@ Les mises à jour arrivent toutes seules : il suffit de recharger la page, ou de
 
 ---
 
+## Version 30 — 27 novembre 2026 · Événements, corrections des arrivées et backyard
+
+### Corriger les arrivées
+- **Une fiche de correction par coureur**, depuis le chrono, la liste « en course » ou les résultats. Elle
+  permet de :
+  - donner ou modifier un temps ;
+  - intervertir deux arrivées ;
+  - noter un abandon ;
+  - disqualifier, avec un motif ;
+  - remettre le coureur en course.
+
+  Un ✎ marque chaque correction.
+- **Nouveau statut DSQ (disqualifié)** : le coureur n'est pas classé et apparaît après les abandons, sur l'écran
+  public, dans le PDF et dans l'export FFA.
+- **Dossard inconnu, ou coureur sans bulletin** : son passage est gardé en attente. On le rattache ensuite à un
+  inscrit ou à un nouveau participant.
+
+### Plusieurs courses en même temps
+- Plusieurs courses peuvent être lancées ensemble. On saisit tous les dossards au même endroit : le numéro
+  suffit à retrouver la course.
+- Le départ est refusé si deux courses lancées ont des dossards en commun.
+- L'écran public peut afficher plusieurs courses côte à côte.
+
+### Événements
+- **Un événement regroupe plusieurs courses** : un cross avec ses catégories, ou un trail avec ses distances.
+  - Les courses reprennent les réglages de l'événement : date, lieu, type, catégories, écoles ou clubs, modèle
+    PDF, diplômes. Chaque course peut garder ses propres réglages.
+  - La liste des courses est rangée par événement, et chaque événement peut être replié.
+- **Plages de dossards** : on répartit les plages entre les courses, avec une alerte si elles se chevauchent. À
+  l'inscription, l'application pose une question si un dossard saisi est hors de la plage ou déjà donné dans
+  l'événement.
+- **PDF de l'événement** : une page de garde, puis les résultats de chaque course. L'Excel contient une feuille
+  par course.
+- **Dupliquer, archiver, supprimer**
+  - On duplique un événement avec toutes ses courses, y compris depuis l'archive.
+  - On l'archive en entier.
+  - On le supprime avec ou sans ses courses.
+- Un événement de démonstration est disponible dans Administration pour essayer.
+
+### Backyard (nouveau format de course)
+- **Choisir le format** : dans la fiche course, « Format : Backyard », avec la durée d'une boucle (60 minutes
+  en général) et sa longueur.
+  - Tous les coureurs repartent au début de chaque période. Celui qui n'est pas rentré à temps est éliminé.
+  - Le gagnant est le seul à finir une boucle de plus que tous les autres.
+- **Limite au choix**, par exemple 12 h ou 24 h. Tous ceux qui finissent la dernière boucle gagnent ex æquo.
+- **Un écran de chrono dédié** :
+  - un compte à rebours jusqu'au prochain départ, avec des bips 3, 2 et 1 minute avant chaque départ ;
+  - une grille de dossards à toucher quand un coureur rentre, ou un tableau des dernières boucles ;
+  - les listes des coureurs attendus, rentrés (avec leur temps de repos) et éliminés.
+- **Abandon ou « ne repart pas »** :
+  - Un coureur qui arrête pendant une boucle ne se voit pas compter cette boucle.
+  - Un coureur déjà rentré qui ne repart pas garde sa boucle.
+  - Toute erreur se corrige en touchant de nouveau son dossard.
+- **Écran public** : un compte à rebours géant et un mur de dossards (rentré, sur la boucle, éliminé).
+- **Résultats** :
+  - le classement se fait au nombre de boucles et de kilomètres ;
+  - le coureur qui a tenu le plus longtemps face au gagnant est marqué « Assist » ;
+  - le PDF et l'Excel donnent le temps de chaque boucle pour chaque coureur.
+- Un backyard de démonstration est disponible dans Administration (une boucle toutes les 5 minutes).
+
+---
+
 ## Version 22 — 25 novembre 2026 · Export FFA, diplômes et nouvelle administration
 
 ### Export FFA
